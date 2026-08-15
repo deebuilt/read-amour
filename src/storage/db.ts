@@ -70,6 +70,23 @@ export async function saveBoard(board: Board): Promise<void> {
   await db.put('boards', { ...board, updatedAt: new Date().toISOString() })
 }
 
+/**
+ * Write a board exactly as given, timestamps included.
+ *
+ * `saveBoard` stamps `updatedAt` with the current time, which is right for
+ * every edit the user makes and wrong for a restore: it would re-date a year of
+ * posters to the moment the backup was read, destroying the only record of when
+ * each was actually last worked on. The file holds the true value and nothing
+ * else does, so a restore must preserve it rather than re-derive it.
+ *
+ * Only the backup restore should use this. An edit that skips the stamp leaves
+ * the board claiming it has not changed since whenever it was last restored.
+ */
+export async function putBoardVerbatim(board: Board): Promise<void> {
+  const db = await getDB()
+  await db.put('boards', board)
+}
+
 export async function deleteBoard(id: string): Promise<void> {
   const db = await getDB()
   await db.delete('boards', id)
@@ -154,6 +171,19 @@ export async function saveBooks(books: readonly Book[]): Promise<void> {
 export async function getImage(key: string): Promise<StoredImage | undefined> {
   const db = await getDB()
   return db.get('images', key)
+}
+
+/**
+ * Every stored image, blobs included.
+ *
+ * Only the backup has a use for this. The app itself always reaches for a
+ * specific key, and the maintenance passes above read the store internally —
+ * pulling every blob into memory at once is a cost worth paying exactly when
+ * the user has asked for a file containing all of them.
+ */
+export async function listImages(): Promise<StoredImage[]> {
+  const db = await getDB()
+  return db.getAll('images')
 }
 
 export async function hasImage(key: string): Promise<boolean> {

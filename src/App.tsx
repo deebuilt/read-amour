@@ -498,7 +498,7 @@ export default function App() {
                 onCreateAll={handleCreateAllPosters}
               />
             )}
-            {panel === 'about' && <AboutPanel />}
+            {panel === 'about' && <AboutPanel onRestored={() => void refreshBoards()} />}
             {panel === 'books' && board && (
               <BookList
                 board={board}

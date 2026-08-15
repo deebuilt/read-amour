@@ -1,5 +1,6 @@
 import { Typography } from 'antd'
 import { CREDITS } from '../../design/credits'
+import { BackupControls } from '../controls/BackupControls'
 import styles from './AboutPanel.module.css'
 
 /**
@@ -9,7 +10,16 @@ import styles from './AboutPanel.module.css'
  * right to wonder where their reading history went, and "nowhere, it is on
  * your phone" is a better answer when it is stated up front.
  */
-export function AboutPanel() {
+interface AboutPanelProps {
+  /**
+   * Reload the poster list after a restore. Without it the posters land in
+   * storage and the open app carries on showing the list it read at startup,
+   * which looks exactly like the restore having done nothing.
+   */
+  onRestored: () => void
+}
+
+export function AboutPanel({ onRestored }: AboutPanelProps) {
   return (
     <div className={styles.root}>
       <section className={styles.section}>
@@ -22,6 +32,11 @@ export function AboutPanel() {
           covers, and your posters live in your browser's own storage, which is also why the app
           keeps working with no signal.
         </Typography.Paragraph>
+      </section>
+
+      <section className={styles.section}>
+        <Typography.Text className={styles.label}>Your library</Typography.Text>
+        <BackupControls onRestored={onRestored} />
       </section>
 
       <section className={styles.section}>
