@@ -7,10 +7,18 @@
  * light or dark is active.
  */
 
+/*
+ * Exactly the viewport, never more. `index.css` sizes html/body/#root in the
+ * same unit deliberately — a `100%` chain above a `100dvh` shell disagrees by
+ * the height of the URL bar on a phone, which pushed the action bar off the
+ * bottom of the screen.
+ */
 .app {
   display: flex;
   flex-direction: column;
   height: 100dvh;
+  /* Belt and braces with the document-level clip: neither the shell nor the
+     page may scroll, whichever one a browser decides owns the overflow. */
   overflow: hidden;
   background: var(--ra-paper);
 }

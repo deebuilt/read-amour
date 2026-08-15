@@ -50,6 +50,14 @@ export function ExportSheet({
       // the work running with nowhere to land.
       maskClosable={busy === undefined}
       closable={busy === undefined}
+      /*
+       * The shell already clips itself and the document, so antd does not need
+       * to take the scrollbar away on open — and its restore afterwards was
+       * leaving `body` able to scroll where it previously could not. Opening
+       * this sheet once was enough to give the page a scrollbar that outlived
+       * it, which pushed the action bar off the bottom of the screen.
+       */
+      styles={{ wrapper: { overflow: 'hidden' } }}
     >
       <div className={styles.options}>
         <button

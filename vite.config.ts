@@ -11,10 +11,17 @@ export default defineConfig({
   server: {
     port: 8204,
     strictPort: true,
+    // Listen on the LAN, not just localhost, so the dev server can be opened on
+    // a phone. This app is mobile-first and several of its layout rules — the
+    // `dvh` shell, the bottom bar clearing the home indicator — cannot be
+    // exercised in a desktop browser at all, because there is no URL bar to
+    // collapse. Vite prints the Network URL on startup once this is set.
+    host: true,
   },
   preview: {
     port: 8204,
     strictPort: true,
+    host: true,
   },
   plugins: [
     react(),

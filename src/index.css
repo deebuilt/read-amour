@@ -8,11 +8,27 @@
   box-sizing: border-box;
 }
 
+/*
+ * The shell is exactly the viewport, and the page itself never scrolls.
+ *
+ * `height: 100%` here and `100dvh` on `.app` are NOT the same number on a
+ * phone: the percentage resolves against a parent sized to the *large*
+ * viewport, while `dvh` tracks the dynamic one. The app shell therefore came
+ * out taller than the box containing it, the document gained a scrollbar it was
+ * never meant to have, and the bottom bar sat below the fold until you scrolled
+ * for it.
+ *
+ * Both ends of the chain use the same unit so they cannot disagree. `overflow:
+ * hidden` on the document is the belt to that braces: `.app` clips its own
+ * children, but anything portalled to `body` — antd's Drawer and Modal both
+ * mount there — is outside `.app` entirely and can otherwise extend the page.
+ */
 html,
 body,
 #root {
-  height: 100%;
+  height: 100dvh;
   margin: 0;
+  overflow: hidden;
 }
 
 body {
