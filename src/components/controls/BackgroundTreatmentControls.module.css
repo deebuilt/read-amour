@@ -1,0 +1,42 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ra-ink-faint);
+}
+
+.hint {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ra-ink-faint);
+}
+
+.rowBetween {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.plateRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.plateSwatchLabel {
+  font-size: 13px;
+  color: var(--ra-ink-soft);
+}

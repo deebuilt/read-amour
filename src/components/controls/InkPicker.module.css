@@ -1,0 +1,61 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.swatch,
+.swatchActive,
+.custom,
+.customActive {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.swatch {
+  border: 1px solid transparent;
+}
+
+/* The ring sits outside the swatch so it reads on any colour, including
+   against a swatch the same tone as the panel. */
+.swatchActive {
+  border: 1px solid transparent;
+  box-shadow: 0 0 0 2px var(--ra-paper), 0 0 0 4px var(--ra-accent);
+  transform: scale(1.06);
+}
+
+.custom,
+.customActive {
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--ra-line-strong);
+  background: none;
+}
+
+.customActive {
+  box-shadow: 0 0 0 2px var(--ra-paper), 0 0 0 4px var(--ra-accent);
+  transform: scale(1.06);
+}
+
+.customInner {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--ra-line-strong);
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--ra-ink-faint);
+  line-height: 1.4;
+}

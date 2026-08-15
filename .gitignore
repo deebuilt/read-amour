@@ -1,0 +1,33 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Uncompressed background originals. Kept locally so the compression script can
+# re-run from a pristine source, but ~7MB of duplicates has no business in the
+# repo — the compressed versions in src/assets/backgrounds are what ships.
+scripts/.originals/
+
+# Personal reading history. If a Goodreads export is dropped in here for
+# testing, it must not be committed.
+*goodreads*.csv

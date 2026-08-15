@@ -1,0 +1,15 @@
+# Background credits
+#
+# One line per image:
+#   <filename> | <photographer or illustrator> | <source URL>
+#
+# Unsplash's license does not require attribution, but crediting the people
+# whose work this ships is worth the one line it costs. Fill a row in as you
+# add each file — reconstructing this later from a folder of renamed images is
+# miserable.
+#
+# Lines starting with # are ignored.
+
+august-01.jpg | Viktoriya Lissachenko | https://unsplash.com/illustrations/flowers-and-foliage-create-an-elegant-corner-design-ja2wm6tszLM
+august-02.jpg | Anna Magenta | https://unsplash.com/illustrations/woman-relaxing-on-a-sandy-beach-with-ocean-waves-ssWErMe7_Nw
+september-01.jpg | Silali Banerjee | https://unsplash.com/illustrations/stylized-reddish-brown-dinosaur-footprints-on-a-peach-background-ynJ-QNwfWIw

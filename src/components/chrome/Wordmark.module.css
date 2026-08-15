@@ -1,0 +1,31 @@
+.lockup {
+  display: inline-flex;
+  align-items: baseline;
+  /* No gap — the two words close up into one mark. */
+  gap: 0;
+  user-select: none;
+}
+
+.read {
+  font-family: 'Fraunces', Georgia, serif;
+  font-weight: 600;
+  font-size: 19px;
+  letter-spacing: -0.02em;
+  color: var(--ra-ink);
+  line-height: 1;
+}
+
+.amour {
+  font-family: 'Fraunces', Georgia, serif;
+  font-style: italic;
+  font-weight: 400;
+  font-size: 19px;
+  color: var(--ra-accent);
+  line-height: 1;
+  /*
+   * Italic letterforms lean away from the roman that precedes them, opening a
+   * visual gap even at zero tracking. A small negative margin closes it so the
+   * join reads as tight as it measures.
+   */
+  margin-left: -0.04em;
+}

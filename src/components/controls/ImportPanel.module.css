@@ -1,0 +1,64 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-bottom: 24px;
+}
+
+.dragText {
+  margin: 0;
+  font-size: 15px;
+  color: var(--ra-ink);
+}
+
+.dragHint {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--ra-ink-faint);
+}
+
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.label {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ra-ink-faint);
+}
+
+.months {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.month {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--ra-line);
+  border-radius: 4px;
+  background: var(--ra-paper-raised);
+}
+
+.monthMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.monthName {
+  font-size: 15px;
+  color: var(--ra-ink);
+}
+
+.monthCount {
+  font-size: 12px;
+}

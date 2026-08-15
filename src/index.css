@@ -1,0 +1,44 @@
+/* Reset and global ground. Everything else lives in module stylesheets. */
+
+@import './design/theme.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: 'Archivo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: var(--ra-ink);
+  background: var(--ra-paper);
+  -webkit-font-smoothing: antialiased;
+  /* The poster is the scroll surface; the shell itself must not bounce. */
+  overscroll-behavior: none;
+}
+
+/* Native form controls and scrollbars follow the theme too. */
+:root {
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+button {
+  font-family: inherit;
+}

@@ -1,0 +1,75 @@
+/*
+ * Three fixed rows: wordmark, poster stage, action bar. The stage takes what
+ * is left, and the poster scales to fit it — so the artwork is never cut off
+ * and the bar is always reachable, on a phone or a desktop.
+ *
+ * Every colour here is a theme variable. Nothing in this file knows whether
+ * light or dark is active.
+ */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--ra-paper);
+}
+
+.header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-left: 12px;
+  padding-right: 4px;
+  padding-block: 6px;
+  border-bottom: 1px solid var(--ra-line);
+  background: var(--ra-paper-raised);
+}
+
+/* Matches the toggle's 44px target so the wordmark sits optically centred. */
+.headerSpacer {
+  width: 44px;
+  flex: none;
+}
+
+.wordmarkButton {
+  display: flex;
+  align-items: center;
+  /* Full touch height without visually padding the mark. */
+  min-height: 44px;
+  padding-inline: 8px;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  background: var(--ra-stage);
+}
+
+.loading {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  /* Clear of the iOS home indicator. */
+  padding-bottom: max(10px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--ra-line);
+  background: var(--ra-paper-raised);
+}

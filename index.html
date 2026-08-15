@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <!-- %BASE_URL% is substituted by Vite, so these resolve under the
+         /read-amour/ Pages route as well as at the dev server root. -->
+    <link rel="icon" type="image/svg+xml" href="%BASE_URL%favicon.svg" />
+    <link rel="apple-touch-icon" href="%BASE_URL%apple-touch-icon.png" />
+
+    <title>Read Amour — your month in book covers</title>
+    <meta
+      name="description"
+      content="Build a shareable poster of everything you read this month. Search a cover, drop it in, save the image. Works offline, keeps nothing on a server."
+    />
+
+    <!--
+      Matches the app's paper and ink so the phone's status bar blends with the
+      shell rather than sitting as a white band above a dark UI.
+    -->
+    <meta name="theme-color" content="#f7f3ec" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#171614" media="(prefers-color-scheme: dark)" />
+
+    <meta property="og:title" content="Read Amour" />
+    <meta property="og:description" content="Your month in book covers, ready to share." />
+    <meta property="og:type" content="website" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

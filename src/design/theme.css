@@ -1,0 +1,58 @@
+/*
+ * Chrome palette, light and dark.
+ *
+ * Three states, and all three must be handled: an explicit choice stamps
+ * `data-theme` on the root, while the default "system" setting stamps nothing
+ * and leaves `prefers-color-scheme` to decide. Every variable is defined on
+ * bare `:root` first so no colour has its only definition inside a media
+ * query — that is how a page ends up with no background at all in one state.
+ *
+ * Dark here is warm charcoal rather than pure black. The app is a place for
+ * looking at book covers, and covers sit better against a ground with some
+ * warmth than against #000.
+ */
+
+:root {
+  --ra-ink: #1c1a17;
+  --ra-ink-soft: #4a4540;
+  --ra-ink-faint: #8a8179;
+  --ra-paper: #f7f3ec;
+  --ra-paper-raised: #fffdf9;
+  --ra-line: #e2dbd0;
+  --ra-line-strong: #cdc3b4;
+  --ra-accent: #8c2f39;
+  --ra-accent-soft: #f3e3e2;
+  /* The inert ground behind the poster, before its own background paints. */
+  --ra-stage: #efe9df;
+  --ra-shadow: rgba(28, 26, 23, 0.12);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --ra-ink: #f2ede4;
+    --ra-ink-soft: #bdb5a9;
+    --ra-ink-faint: #8b837a;
+    --ra-paper: #171614;
+    --ra-paper-raised: #201e1b;
+    --ra-line: #322f2b;
+    --ra-line-strong: #46423c;
+    --ra-accent: #c9636c;
+    --ra-accent-soft: #3a2427;
+    --ra-stage: #0f0e0d;
+    --ra-shadow: rgba(0, 0, 0, 0.45);
+  }
+}
+
+:root[data-theme='dark'] {
+  --ra-ink: #f2ede4;
+  --ra-ink-soft: #bdb5a9;
+  --ra-ink-faint: #8b837a;
+  --ra-paper: #171614;
+  --ra-paper-raised: #201e1b;
+  --ra-line: #322f2b;
+  --ra-line-strong: #46423c;
+  --ra-accent: #c9636c;
+  --ra-accent-soft: #3a2427;
+  --ra-stage: #0f0e0d;
+  --ra-shadow: rgba(0, 0, 0, 0.45);
+}

@@ -1,0 +1,140 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 24px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.label {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ra-ink-faint);
+}
+
+.divider {
+  margin-block: 20px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/*
+ * Swatches wrap rather than scroll — a hidden row of options is a row nobody
+ * finds on a phone.
+ */
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+  gap: 8px;
+}
+
+.swatch,
+.swatchActive {
+  aspect-ratio: 9 / 16;
+  border-radius: 3px;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 120ms ease;
+}
+
+.swatch {
+  border: 1px solid var(--ra-line-strong);
+}
+
+.swatchActive {
+  border: 2px solid var(--ra-accent);
+  transform: scale(1.04);
+}
+
+/*
+ * Photo designs get larger tiles than the flat swatches — you cannot judge a
+ * photograph at swatch size, and choosing one is the more consequential pick.
+ */
+.photos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 8px;
+}
+
+.photo,
+.photoActive {
+  aspect-ratio: 9 / 16;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 3px;
+  cursor: pointer;
+  background: var(--ra-line);
+  transition: transform 120ms ease;
+}
+
+.photo {
+  border: 1px solid var(--ra-line-strong);
+}
+
+.photoActive {
+  border: 2px solid var(--ra-accent);
+  transform: scale(1.04);
+}
+
+.photo img,
+.photoActive img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.typefaces {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.typeface,
+.typefaceActive {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+  padding: 10px 14px;
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  transition: background 120ms ease;
+}
+
+.typeface {
+  border: 1px solid var(--ra-line);
+}
+
+.typefaceActive {
+  border: 1px solid var(--ra-accent);
+  background: var(--ra-accent-soft);
+}
+
+.typefaceVoice {
+  font-size: 12px;
+}
+
+.sliderRow {
+  display: flex;
+  align-items: center;
+}
+
+.sliderLabel {
+  font-size: 13px;
+  color: var(--ra-ink-soft);
+  min-width: 52px;
+}

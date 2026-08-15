@@ -1,0 +1,37 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+  height: 100%;
+}
+
+.current {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--ra-line);
+  border-radius: 4px;
+  background: var(--ra-paper-raised);
+}
+
+.currentCover {
+  width: 52px;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: 2px;
+  flex: none;
+}
+
+.currentMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.clear {
+  align-self: flex-start;
+  padding-inline: 0;
+  margin-top: 2px;
+}
