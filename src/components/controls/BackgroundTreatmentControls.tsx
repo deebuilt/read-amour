@@ -44,7 +44,7 @@ export function BackgroundTreatmentControls({
       {hasImage && (
         <>
           <div className={styles.field}>
-            <Typography.Text className={styles.label}>How it sits</Typography.Text>
+            <Typography.Text className={styles.label}>How the image fills the frame</Typography.Text>
             <Segmented
               block
               options={FIT_OPTIONS}

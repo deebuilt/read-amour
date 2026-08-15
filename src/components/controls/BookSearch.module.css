@@ -72,6 +72,32 @@
   object-fit: cover;
 }
 
+/*
+ * Stands in for art the catalogue does not have. Deliberately plain rather
+ * than a broken-image look — the record is good, only the picture is missing,
+ * and choosing this row is a valid "take the details, I'll supply the cover".
+ */
+.noCover {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 100%;
+  color: var(--ra-ink-faint);
+  background: var(--ra-paper-raised);
+  border: 1px dashed var(--ra-line-strong);
+  border-radius: 2px;
+}
+
+.noCoverText {
+  font-size: 11px;
+  line-height: 1.2;
+  text-align: center;
+  padding-inline: 6px;
+}
+
 .thumbOverlay {
   position: absolute;
   inset: 0;

@@ -57,8 +57,18 @@ function toResult(doc: SearchDoc, index: number): CoverSearchResult | undefined 
 }
 
 /**
- * Search by free text. Results without a cover are dropped — this app exists
- * to place cover art, so a coverless result is noise.
+ * Search by free text.
+ *
+ * Coverless results used to be dropped here, on the reasoning that a
+ * cover-placing app has no use for a book with no cover. That threw away too
+ * much. Open Library's record for a recent release is often complete except for
+ * the artwork — `A Forsaken Prophecy` (July 2026) has two editions, both with
+ * no cover — and the book would vanish from search entirely, with no hint that
+ * the catalogue had ever heard of it.
+ *
+ * The title, author and ISBN are the tedious parts to type; the cover can come
+ * from Apple Books (`bookSearch.ts` merges it in) or from the reader's own
+ * upload. So coverless rows are returned and simply sorted last.
  */
 export async function searchBooks(query: string, signal?: AbortSignal): Promise<CoverSearchResult[]> {
   const trimmed = query.trim()
@@ -80,7 +90,6 @@ export async function searchBooks(query: string, signal?: AbortSignal): Promise<
   return data.docs
     .map(toResult)
     .filter((result): result is CoverSearchResult => result !== undefined)
-    .filter((result) => result.coverId !== undefined)
 }
 
 /**

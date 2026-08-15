@@ -11,11 +11,14 @@
   gap: 12px;
 }
 
+/* Matches `PanelSection`'s heading — see the note there on why headings and
+ * field labels must not look alike. */
 .label {
-  font-size: 12px;
-  letter-spacing: 0.08em;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--ra-ink-faint);
+  color: var(--ra-ink);
 }
 
 .switchRow {
@@ -32,8 +35,16 @@
   min-width: 0;
 }
 
+/*
+ * Sections need a real edge between them, not a suggestion. Ant's default rule
+ * is a hairline at low opacity, which in a drawer of eight sections read as
+ * texture rather than separation. Full-strength line, and more air after it
+ * than before, so the rule attaches to the section it opens rather than
+ * floating equidistant between two.
+ */
 .divider {
-  margin-block: 20px;
+  margin-block: 22px 20px;
+  border-block-start-color: var(--ra-line-strong);
 }
 
 .row {
@@ -68,6 +79,28 @@
 .swatchActive {
   border: 2px solid var(--ra-accent);
   transform: scale(1.04);
+}
+
+/*
+ * Designs are grouped by the month they were shot for. The month is a real
+ * fact about each image that the UI never surfaced — it lived only in an
+ * aria-label — so the picker read as one long wall of photographs.
+ */
+.photoGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.photoGroup + .photoGroup {
+  margin-block-start: 16px;
+}
+
+/* Quieter than a section heading, louder than nothing. */
+.groupHeading {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ra-ink-soft);
 }
 
 /*
@@ -140,15 +173,4 @@
 
 .typefaceVoice {
   font-size: 12px;
-}
-
-.sliderRow {
-  display: flex;
-  align-items: center;
-}
-
-.sliderLabel {
-  font-size: 13px;
-  color: var(--ra-ink-soft);
-  min-width: 52px;
 }

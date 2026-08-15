@@ -1,17 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Empty, Input, Spin, Typography } from 'antd'
-import { coverUrl, searchBooks } from '../../api/openLibrary'
-import { ensureCoverStored } from '../../api/covers'
+import { PictureOutlined } from '@ant-design/icons'
+import { coverUrl } from '../../api/openLibrary'
+import { searchAllBooks } from '../../api/bookSearch'
+import { ensureAppleCoverStored, ensureCoverStored } from '../../api/covers'
 import { saveBook, tagImageOwner } from '../../storage/db'
 import { color, fontSize, space } from '../../design/tokens'
 import type { Book, CoverSearchResult } from '../../types/domain'
 import styles from './BookSearch.module.css'
 
 /**
- * Search Open Library and place a cover into a slot.
+ * Search both catalogues and place a cover into a slot.
  *
  * This replaces the manual loop these posters normally require — screenshot a
  * cover, open an editor, drag it into place. Here it is: type, tap, done.
+ *
+ * Results carry a cover from Open Library, one from Apple Books, or none at
+ * all. All three are selectable: a coverless row still saves the title, author
+ * and ISBN, which is the tedious part, and the cover can be uploaded from the
+ * book's editor afterwards.
  */
 
 const DEBOUNCE_MS = 350
@@ -45,7 +52,7 @@ export function BookSearch({ onSelect }: BookSearchProps) {
       setIsSearching(true)
       setError(undefined)
 
-      searchBooks(trimmed, controller.signal)
+      searchAllBooks(trimmed, controller.signal)
         .then((found) => {
           if (!controller.signal.aborted) {
             setResults(found)
@@ -68,13 +75,32 @@ export function BookSearch({ onSelect }: BookSearchProps) {
 
   const handleSelect = useCallback(
     async (result: CoverSearchResult) => {
-      if (result.coverId === undefined) return
       setPendingKey(result.key)
 
       try {
-        const blobKey = await ensureCoverStored(result.coverId)
+        /*
+         * A result may have an Open Library cover, an Apple one, or neither.
+         * Neither is still worth taking: the title, author and ISBN are the
+         * tedious part, and the reader can add a cover from the book's own
+         * editor afterwards. Refusing the row would hide a book the catalogue
+         * genuinely has.
+         */
+        const blobKey =
+          result.coverId !== undefined
+            ? await ensureCoverStored(result.coverId)
+            : result.appleArtworkUrl
+              ? await ensureAppleCoverStored(result.appleArtworkUrl)
+              : undefined
+
         const book: Book = {
-          id: `ol-${result.coverId}`,
+          // Identity follows whichever catalogue found it, so re-adding the
+          // same book reuses one record rather than creating a duplicate.
+          id:
+            result.coverId !== undefined
+              ? `ol-${result.coverId}`
+              : result.isbn13
+                ? `isbn-${result.isbn13}`
+                : `find-${result.key}`,
           title: result.title,
           author: result.author,
           isbn13: result.isbn13,
@@ -125,7 +151,7 @@ export function BookSearch({ onSelect }: BookSearchProps) {
         {!isSearching && !error && query.trim().length >= 2 && results.length === 0 && (
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description="No covers found"
+            description="No books found"
             style={{ marginBlock: space.xl }}
           />
         )}
@@ -140,13 +166,27 @@ export function BookSearch({ onSelect }: BookSearchProps) {
               disabled={pendingKey !== undefined}
             >
               <span className={styles.thumbWrap}>
-                {result.coverId !== undefined && (
+                {result.coverId !== undefined ? (
                   <img
                     className={styles.thumb}
                     src={coverUrl(result.coverId, 'M')}
                     alt=""
                     loading="lazy"
                   />
+                ) : result.appleArtworkUrl ? (
+                  <img
+                    className={styles.thumb}
+                    src={result.appleArtworkUrl}
+                    alt=""
+                    loading="lazy"
+                  />
+                ) : (
+                  // Says plainly that this row carries no picture, so choosing
+                  // it is a deliberate "take the details, I'll add the cover".
+                  <span className={styles.noCover}>
+                    <PictureOutlined />
+                    <span className={styles.noCoverText}>Add your own</span>
+                  </span>
                 )}
                 {pendingKey === result.key && (
                   <span className={styles.thumbOverlay}>

@@ -125,3 +125,41 @@ export function photosForMonth(monthKey: string): PhotoBackground[] {
   const rest = PHOTO_BACKGROUNDS.filter((bg) => bg.month !== slug && bg.month !== 'general')
   return [...seasonal, ...general, ...rest]
 }
+
+export interface PhotoGroup {
+  month: string
+  /** `September`, or `Any month` for the seasonless ones. */
+  heading: string
+  photos: PhotoBackground[]
+}
+
+/**
+ * The same ordering as `photosForMonth`, split into labelled runs.
+ *
+ * The designs are named after months and nothing in the UI ever said so — the
+ * name lived only in an `aria-label`. A poster built in August scrolls straight
+ * from the August designs into September and October with no visible seam, so
+ * the picker read as one undifferentiated wall of photographs.
+ *
+ * Grouped rather than captioned per tile: ten captions is the same word
+ * repeated in pairs, while five headings actually organise the list.
+ */
+export function photoGroupsForMonth(monthKey: string): PhotoGroup[] {
+  const groups: PhotoGroup[] = []
+
+  for (const photo of photosForMonth(monthKey)) {
+    const last = groups[groups.length - 1]
+    if (last?.month === photo.month) {
+      last.photos.push(photo)
+      continue
+    }
+
+    groups.push({
+      month: photo.month,
+      heading: photo.month === 'general' ? 'Any month' : titleCase(photo.month),
+      photos: [photo],
+    })
+  }
+
+  return groups
+}

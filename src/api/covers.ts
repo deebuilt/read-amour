@@ -1,3 +1,4 @@
+import { appleCoverBlobKey, fetchAppleCoverBlob, findAppleCover } from './appleBooks'
 import { coverBlobKey, fetchCoverBlob, searchByIsbn } from './openLibrary'
 import { getBook, getImage, hasImage, saveBook, saveImage, tagImageOwner } from '../storage/db'
 import type { Book } from '../types/domain'
@@ -32,12 +33,37 @@ export async function ensureCoverStored(coverId: number): Promise<string | undef
 }
 
 /**
+ * Store artwork from Apple Books, keyed on its URL so it is fetched once.
+ *
+ * Apple's image CDN sends `Access-Control-Allow-Origin: *`, so the bytes can be
+ * read into a blob and the exported canvas stays untainted — the same contract
+ * Open Library's covers meet, and the one Google Books fails.
+ */
+export async function ensureAppleCoverStored(url: string): Promise<string | undefined> {
+  const key = appleCoverBlobKey(url)
+  if (await hasImage(key)) return key
+
+  const blob = await fetchAppleCoverBlob(url)
+  if (!blob) return undefined
+
+  await saveImage({ key, blob, sourceUrl: url, createdAt: new Date().toISOString() })
+  return key
+}
+
+/**
  * Resolve a cover for a book that has none yet.
  *
  * ISBN first because it is exact — the CSV import path almost always has one,
  * and a title search would return five editions with three different covers.
  * Books without an ISBN (older classics, some reprints) fall back to the
  * caller's manual search.
+ *
+ * Apple Books is tried last, and only when Open Library has produced nothing.
+ * A Goodreads export of a recent release routinely lands here: the ISBN is
+ * right, Open Library knows the book, and there is simply no cover in the
+ * catalogue. Apple cannot be queried by ISBN at all, so that lookup is fuzzy
+ * text and is accepted only on a confident title-and-author match — a wrong
+ * cover looks correct and is worse than none.
  */
 export async function resolveCoverForBook(book: Book): Promise<string | undefined> {
   if (book.coverBlobKey && (await hasImage(book.coverBlobKey))) {
@@ -64,26 +90,44 @@ export async function resolveCoverForBook(book: Book): Promise<string | undefine
   const coverId = book.coverId ?? stored?.coverId
   if (coverId !== undefined) {
     const key = await ensureCoverStored(coverId)
-    if (key) await tagImageOwner(key, book)
-    return key
+    if (key) {
+      await tagImageOwner(key, book)
+      return key
+    }
+    // A known cover id that yields no bytes is a dead record, not an answer.
+    // Fall through to Apple rather than reporting the book as coverless.
   }
 
   const isbn = book.isbn13 ?? book.isbn10
-  if (!isbn) return undefined
 
-  const match = await searchByIsbn(isbn)
-  if (match?.coverId === undefined) return undefined
-
-  const key = await ensureCoverStored(match.coverId)
-  // Remember which cover this ISBN resolved to, so the search is not repeated
-  // on every future import of the same book — and record the ownership on the
-  // image too, so the link survives damage to the book record.
-  if (key) {
-    const current = stored ?? book
-    await saveBook({ ...current, coverId: match.coverId, coverBlobKey: key })
-    await tagImageOwner(key, book)
+  if (isbn && coverId === undefined) {
+    const match = await searchByIsbn(isbn)
+    if (match?.coverId !== undefined) {
+      const key = await ensureCoverStored(match.coverId)
+      // Remember which cover this ISBN resolved to, so the search is not
+      // repeated on every future import of the same book — and record the
+      // ownership on the image too, so the link survives damage to the book.
+      if (key) {
+        const current = stored ?? book
+        await saveBook({ ...current, coverId: match.coverId, coverBlobKey: key })
+        await tagImageOwner(key, book)
+        return key
+      }
+    }
   }
-  return key
+
+  // Open Library has no picture. Apple is a storefront, so a book on sale has
+  // artwork by definition — this is where a July release finally gets a cover.
+  const artworkUrl = await findAppleCover(book.title, book.author)
+  if (!artworkUrl) return undefined
+
+  const appleKey = await ensureAppleCoverStored(artworkUrl)
+  if (appleKey) {
+    const current = stored ?? book
+    await saveBook({ ...current, coverBlobKey: appleKey })
+    await tagImageOwner(appleKey, book)
+  }
+  return appleKey
 }
 
 /**

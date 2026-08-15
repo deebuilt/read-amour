@@ -1,0 +1,72 @@
+/*
+ * A wrapping grid of options rather than a scrolling row — the same reasoning
+ * as the background swatches. Nine layouts fit two or three to a line on a
+ * phone without anything hiding off the edge.
+ */
+.options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 8px;
+}
+
+.option,
+.optionActive {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 6px 8px;
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  transition: background 120ms ease;
+}
+
+.option {
+  border: 1px solid var(--ra-line);
+}
+
+.optionActive {
+  border: 1px solid var(--ra-accent);
+  background: var(--ra-accent-soft);
+}
+
+/*
+ * The shape preview is a miniature of the poster frame, so the choice is
+ * legible as a picture and not only as a number. Fixed 9:16 like the real
+ * thing, with the cells laid out at the actual column and row count.
+ */
+.preview {
+  display: grid;
+  gap: 2px;
+  width: 27px;
+  aspect-ratio: 9 / 16;
+  align-content: center;
+}
+
+.cell {
+  aspect-ratio: 2 / 3;
+  border-radius: 1px;
+  background: var(--ra-ink-faint);
+  opacity: 0.45;
+}
+
+.optionActive .cell {
+  background: var(--ra-accent);
+  opacity: 0.7;
+}
+
+.count {
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--ra-ink);
+}
+
+.shape {
+  font-size: 11px;
+  line-height: 1;
+  color: var(--ra-ink-faint);
+  font-variant-numeric: tabular-nums;
+}

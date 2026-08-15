@@ -1,14 +1,16 @@
 import { useCallback } from 'react'
-import { Button, Divider, Input, Slider, Switch, Typography, Upload } from 'antd'
-import { BUILTIN_BACKGROUNDS } from '../../design/backgrounds'
-import { photosForMonth } from '../../design/photoBackgrounds'
-import { TYPEFACES } from '../../design/typefaces'
+import { Button, Divider, Input, Switch, Typography, Upload } from 'antd'
+import { BUILTIN_BACKGROUNDS, getBuiltinBackground } from '../../design/backgrounds'
+import { getPhotoBackground, photoGroupsForMonth } from '../../design/photoBackgrounds'
+import { TYPEFACES, getTypeface } from '../../design/typefaces'
 import { InkPicker } from './InkPicker'
 import { BackgroundTreatmentControls } from './BackgroundTreatmentControls'
-import { color, fontSize, space } from '../../design/tokens'
-import { resizeGrid } from '../../domain/board'
+import { GridPicker } from './GridPicker'
+import { PanelSection } from './PanelSection'
+import { color, fontSize } from '../../design/tokens'
+import { filledCount, resizeGrid } from '../../domain/board'
 import { storeUploadedImage } from '../../api/covers'
-import { GRID_LIMITS, type Board } from '../../types/domain'
+import { type Board } from '../../types/domain'
 import styles from './DesignPanel.module.css'
 
 /**
@@ -17,6 +19,11 @@ import styles from './DesignPanel.module.css'
  * Grouped by what the user is deciding rather than by data shape — "how it
  * looks" before "how much fits" before "what it says", which is the order
  * people actually work in.
+ *
+ * The two tall image pickers collapse and start closed. They are the sections
+ * that made the drawer long, and they are chosen once per poster, while the
+ * words and the layout get returned to repeatedly. Everything short stays open,
+ * because a tap to reach a single switch is worse than the scroll it saves.
  */
 
 interface DesignPanelProps {
@@ -43,45 +50,69 @@ export function DesignPanel({ board, onChange }: DesignPanelProps) {
   // Compared against the fixed poster hex, never a theme variable — the
   // poster's palette must not shift with the app's theme.
   // This board's month leads, but every design stays reachable.
-  const photos = photosForMonth(board.month)
+  const photoGroups = photoGroupsForMonth(board.month)
+
+  // What each collapsed section is currently set to. A closed section that
+  // cannot tell you its own value just hides information behind a tap.
+  const backgroundSummary = (): string => {
+    switch (board.background.kind) {
+      case 'photo':
+        return getPhotoBackground(board.background.id)?.label ?? 'Design'
+      case 'builtin':
+        return getBuiltinBackground(board.background.id).name
+      case 'upload':
+        return 'Your photo'
+      case 'color':
+        return 'Custom colour'
+    }
+  }
 
   return (
     <div className={styles.root}>
-      {photos.length > 0 && (
+      {photoGroups.length > 0 && (
         <>
-          <section className={styles.section}>
-            <Typography.Text className={styles.label}>Designs</Typography.Text>
-            <div className={styles.photos}>
-              {photos.map((photo) => {
-                const isActive =
-                  board.background.kind === 'photo' && board.background.id === photo.id
-                return (
-                  <button
-                    key={photo.id}
-                    type="button"
-                    className={isActive ? styles.photoActive : styles.photo}
-                    onClick={() =>
-                      onChange({
-                        ...board,
-                        background: { kind: 'photo', id: photo.id },
-                        text: { ...board.text, inkColor: color.posterInk },
-                      })
-                    }
-                    aria-label={photo.label}
-                    aria-pressed={isActive}
-                  >
-                    <img src={photo.url} alt="" loading="lazy" />
-                  </button>
-                )
-              })}
-            </div>
-          </section>
+          <PanelSection
+            label="Designs"
+            collapsible
+            summary={board.background.kind === 'photo' ? backgroundSummary() : undefined}
+          >
+            {photoGroups.map((group) => (
+              <div key={group.month} className={styles.photoGroup}>
+                <Typography.Text className={styles.groupHeading}>
+                  {group.heading}
+                </Typography.Text>
+                <div className={styles.photos}>
+                  {group.photos.map((photo) => {
+                    const isActive =
+                      board.background.kind === 'photo' && board.background.id === photo.id
+                    return (
+                      <button
+                        key={photo.id}
+                        type="button"
+                        className={isActive ? styles.photoActive : styles.photo}
+                        onClick={() =>
+                          onChange({
+                            ...board,
+                            background: { kind: 'photo', id: photo.id },
+                            text: { ...board.text, inkColor: color.posterInk },
+                          })
+                        }
+                        aria-label={photo.label}
+                        aria-pressed={isActive}
+                      >
+                        <img src={photo.url} alt="" loading="lazy" />
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </PanelSection>
           <Divider className={styles.divider} />
         </>
       )}
 
-      <section className={styles.section}>
-        <Typography.Text className={styles.label}>Background</Typography.Text>
+      <PanelSection label="Background" collapsible summary={backgroundSummary()}>
         <div className={styles.swatches}>
           {BUILTIN_BACKGROUNDS.map((bg) => {
             const isActive = board.background.kind === 'builtin' && board.background.id === bg.id
@@ -117,28 +148,30 @@ export function DesignPanel({ board, onChange }: DesignPanelProps) {
             <Button size="small">Upload a photo</Button>
           </Upload>
         </div>
-      </section>
+      </PanelSection>
 
       <Divider className={styles.divider} />
 
-      <section className={styles.section}>
+      <PanelSection label="Adjust the background">
         <BackgroundTreatmentControls board={board} onChange={onChange} />
-      </section>
+      </PanelSection>
 
       <Divider className={styles.divider} />
 
-      <section className={styles.section}>
-        <Typography.Text className={styles.label}>Text colour</Typography.Text>
+      <PanelSection label="Text colour">
         <InkPicker
           value={board.text.inkColor}
           onChange={(inkColor) => onChange({ ...board, text: { ...board.text, inkColor } })}
         />
-      </section>
+      </PanelSection>
 
       <Divider className={styles.divider} />
 
-      <section className={styles.section}>
-        <Typography.Text className={styles.label}>Typeface</Typography.Text>
+      <PanelSection
+        label="Typeface"
+        collapsible
+        summary={getTypeface(board.text.typefaceId).name}
+      >
         <div className={styles.typefaces}>
           {TYPEFACES.map((face) => {
             const isActive = board.text.typefaceId === face.id
@@ -162,39 +195,17 @@ export function DesignPanel({ board, onChange }: DesignPanelProps) {
             )
           })}
         </div>
-      </section>
+      </PanelSection>
 
       <Divider className={styles.divider} />
 
-      <section className={styles.section}>
-        <Typography.Text className={styles.label}>
-          Grid — {board.grid.columns} across, {board.grid.rows} down
-        </Typography.Text>
-
-        <div className={styles.sliderRow}>
-          <span className={styles.sliderLabel}>Across</span>
-          <Slider
-            min={GRID_LIMITS.minColumns}
-            max={GRID_LIMITS.maxColumns}
-            value={board.grid.columns}
-            onChange={(columns: number) =>
-              onChange(resizeGrid(board, { ...board.grid, columns }))
-            }
-            style={{ flex: 1, marginInline: space.md }}
-          />
-        </div>
-
-        <div className={styles.sliderRow}>
-          <span className={styles.sliderLabel}>Down</span>
-          <Slider
-            min={GRID_LIMITS.minRows}
-            max={GRID_LIMITS.maxRows}
-            value={board.grid.rows}
-            onChange={(rows: number) => onChange(resizeGrid(board, { ...board.grid, rows }))}
-            style={{ flex: 1, marginInline: space.md }}
-          />
-        </div>
-      </section>
+      <PanelSection label="Layout">
+        <GridPicker
+          value={board.grid}
+          filled={filledCount(board)}
+          onChange={(grid) => onChange(resizeGrid(board, grid))}
+        />
+      </PanelSection>
 
       <Divider className={styles.divider} />
 
@@ -215,8 +226,7 @@ export function DesignPanel({ board, onChange }: DesignPanelProps) {
 
       <Divider className={styles.divider} />
 
-      <section className={styles.section}>
-        <Typography.Text className={styles.label}>Words</Typography.Text>
+      <PanelSection label="Words">
         <Input
           value={board.text.title}
           onChange={(event) =>
@@ -242,7 +252,7 @@ export function DesignPanel({ board, onChange }: DesignPanelProps) {
           }
           placeholder="@yourhandle (optional)"
         />
-      </section>
+      </PanelSection>
     </div>
   )
 }

@@ -1,0 +1,75 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/*
+ * The whole header is the hit target, not just the chevron — a 12px caret is
+ * not a thumb target, and there is nothing else on the row to hit by mistake.
+ */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.heading {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+/*
+ * Section headings outrank the field labels inside them. Both used to be 12px
+ * faint uppercase, which meant nothing in the drawer read as a heading —
+ * "Background" and "How it sits" carried identical weight, so the eye found no
+ * structure and eight sections ran together as one grey list.
+ *
+ * Full ink and real weight, against faint small-caps for the fields below.
+ */
+.label {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ra-ink);
+}
+
+/*
+ * What the section is currently set to, shown on the closed header so a
+ * collapsed section still answers "what is this poster using?" without a tap.
+ */
+.summary {
+  font-size: 12px;
+  color: var(--ra-ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.caret {
+  flex: none;
+  color: var(--ra-ink-faint);
+  transition: transform 120ms ease;
+}
+
+.caretOpen {
+  transform: rotate(90deg);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}

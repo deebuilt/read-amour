@@ -5,11 +5,8 @@ import { parseGoodreadsCsv, formatMonth, type ImportResult } from '../../import/
 import { resolveCoversForBooks, type BatchProgress } from '../../api/covers'
 import { saveBooks } from '../../storage/db'
 import { color, fontSize } from '../../design/tokens'
-import { GRID_LIMITS, type Book } from '../../types/domain'
+import { MAX_GRID_CAPACITY, type Book } from '../../types/domain'
 import styles from './ImportPanel.module.css'
-
-/** The largest grid the poster allows, and so the most books one can hold. */
-const MAX_SLOTS = GRID_LIMITS.maxColumns * GRID_LIMITS.maxRows
 
 /**
  * Goodreads CSV import.
@@ -160,7 +157,7 @@ export function ImportPanel({ onUseMonth, usedMonths, onCreateAll }: ImportPanel
             const isUsed = usedMonths.has(month)
             // A month with more books than the biggest grid holds cannot fit;
             // saying so here beats silently dropping the overflow on tap.
-            const overflow = Math.max(0, books.length - MAX_SLOTS)
+            const overflow = Math.max(0, books.length - MAX_GRID_CAPACITY)
 
             return (
               <div key={month} className={styles.month}>

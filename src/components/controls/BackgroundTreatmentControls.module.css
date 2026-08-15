@@ -10,11 +10,16 @@
   gap: 6px;
 }
 
+/*
+ * A field label inside a section, deliberately quieter than the section
+ * heading in `PanelSection`. These were identical, which is why the drawer had
+ * no legible hierarchy — sentence case and soft ink against the heading's bold
+ * small-caps.
+ */
 .label {
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ra-ink-faint);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ra-ink-soft);
 }
 
 .hint {

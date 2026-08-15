@@ -2,7 +2,15 @@ import { DEFAULT_BACKGROUND_ID, getBuiltinBackground } from '../design/backgroun
 import { DEFAULT_TYPEFACE_ID } from '../design/typefaces'
 import { color } from '../design/tokens'
 import { monthName } from '../import/goodreads'
-import { DEFAULT_GRID, type Board, type Book, type GridConfig, type Slot } from '../types/domain'
+import {
+  DEFAULT_GRID,
+  GRID_LAYOUTS,
+  gridCapacity,
+  type Board,
+  type Book,
+  type GridConfig,
+  type Slot,
+} from '../types/domain'
 
 /**
  * Board construction and mutation.
@@ -19,8 +27,78 @@ import { DEFAULT_GRID, type Board, type Book, type GridConfig, type Slot } from 
  * html-to-image, so such a board would export with no visible title. Boards
  * are cheap to fix and expensive to lose, so this migrates rather than resets.
  */
+export function isOfferedGrid(grid: GridConfig): boolean {
+  return GRID_LAYOUTS.some(
+    (layout) => layout.columns === grid.columns && layout.rows === grid.rows,
+  )
+}
+
+/**
+ * Nearest offered shape to a grid the app no longer offers.
+ *
+ * Boards were once free to be any shape from 2x2 to 5x6, and the taller ones
+ * stranded most of the frame in margin. Those still exist in storage.
+ *
+ * The one hard rule is that capacity may never shrink: a 2x6 board holds twelve
+ * books, and mapping it to anything smaller would drop the overflow off the
+ * poster. So this takes the smallest offered layout that still holds everything
+ * the old one did — 2x6 becomes 4x3, same twelve slots, full frame width. Ties
+ * on capacity go to the shape closest to the original's proportions, so a wide
+ * board stays wide.
+ *
+ * A shape too big for anything offered falls to the largest, which can only
+ * happen for 5x5 and 5x6 — both above the 20 the app now tops out at.
+ */
+export function nearestOfferedGrid(grid: GridConfig): GridConfig {
+  if (isOfferedGrid(grid)) return grid
+
+  const wanted = gridCapacity(grid)
+  const aspect = grid.columns / grid.rows
+
+  const closestAspect = (a: GridConfig, b: GridConfig): number =>
+    Math.abs(a.columns / a.rows - aspect) - Math.abs(b.columns / b.rows - aspect)
+
+  // Everything that still holds the board's books: take the tightest fit.
+  const roomy = GRID_LAYOUTS.filter((layout) => gridCapacity(layout) >= wanted)
+  if (roomy.length > 0) {
+    return [...roomy].sort(
+      (a, b) => gridCapacity(a) - gridCapacity(b) || closestAspect(a, b),
+    )[0]
+  }
+
+  // Nothing holds them all — only 5x5 and 5x6, both above the new ceiling of
+  // 20. Take the largest, and accept that the tail is dropped.
+  return [...GRID_LAYOUTS].sort(
+    (a, b) => gridCapacity(b) - gridCapacity(a) || closestAspect(a, b),
+  )[0]
+}
+
 export function migrateBoard(board: Board): Board {
   let migrated = board
+
+  // Grids taller than they are wide stranded up to 378px of margin per side.
+  // Those boards predate the fixed catalogue of shapes and must be remapped.
+  //
+  // `resizeGrid` alone is not safe here: it keeps books by slot index, so a
+  // board with a gap early on would drop a book off the end while empty slots
+  // remained. A migration the user did not ask for must not cost her a book,
+  // so the books are read out in order and re-placed from the top. The only
+  // boards that still lose one are those holding more than the 20 any offered
+  // poster can show, and no remapping can help those.
+  if (!isOfferedGrid(migrated.grid)) {
+    const books = bookIdsOnBoard(migrated)
+    const grid = nearestOfferedGrid(migrated.grid)
+    const capacity = gridCapacity(grid)
+
+    migrated = {
+      ...migrated,
+      grid,
+      slots: Array.from({ length: capacity }, (_, index) => ({
+        index,
+        bookId: books[index],
+      })),
+    }
+  }
 
   // `linen` was a warm off-white so close to `paper` that the two were the
   // same swatch; it became the cooler `stone`. Boards still naming it would

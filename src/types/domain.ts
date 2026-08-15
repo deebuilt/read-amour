@@ -51,12 +51,48 @@ export interface GridConfig {
   rows: number
 }
 
-export const GRID_LIMITS = {
-  minColumns: 2,
-  maxColumns: 5,
-  minRows: 2,
-  maxRows: 6,
-} as const
+/**
+ * The grid shapes the app offers, and the only ones it offers.
+ *
+ * Not every columns-by-rows pair fills the poster. The frame is 9:16 and slots
+ * are locked to 2:3 so covers never crop, which means a grid taller than it is
+ * wide runs out of height before it runs out of width — and the leftover width
+ * has nowhere to go, because widening a slot would make it taller again. It
+ * falls into the side margins instead. A 2x6 grid uses 30% of the frame width
+ * and reads as a narrow column floating in dead air.
+ *
+ * The rule that falls out of the geometry is exact: **rows may never exceed
+ * columns.** Every square-or-wider shape is width-bound and fills the frame at
+ * the designed 72px margin; every taller-than-wide shape strands margin.
+ *
+ * So the shape is not a free choice. Two sliders asked the user to solve a
+ * geometry problem in order to answer the question she actually has, which is
+ * how many books fit. These nine are the shapes that make a good poster, and
+ * the control offers them by capacity.
+ *
+ * 5x5 (25) is deliberately absent though it is width-bound and legal: slots
+ * come out 152px wide on a 1080px poster, which is a postage stamp on a phone
+ * and turns the star ratings into specks. Add it if 25-book months are ever
+ * actually asked for.
+ */
+export const GRID_LAYOUTS: readonly GridConfig[] = [
+  { columns: 2, rows: 2 }, // 4
+  { columns: 3, rows: 2 }, // 6
+  { columns: 4, rows: 2 }, // 8
+  { columns: 3, rows: 3 }, // 9
+  { columns: 5, rows: 2 }, // 10
+  { columns: 4, rows: 3 }, // 12
+  { columns: 5, rows: 3 }, // 15
+  { columns: 4, rows: 4 }, // 16
+  { columns: 5, rows: 4 }, // 20
+] as const
+
+export function gridCapacity(grid: GridConfig): number {
+  return grid.columns * grid.rows
+}
+
+/** The most books any offered poster holds. */
+export const MAX_GRID_CAPACITY = Math.max(...GRID_LAYOUTS.map(gridCapacity))
 
 export const DEFAULT_GRID: GridConfig = { columns: 4, rows: 4 }
 
@@ -163,12 +199,22 @@ export interface StoredImage {
   createdAt: string
 }
 
-/** A search result before it becomes a `Book`. */
+/**
+ * A search result before it becomes a `Book`.
+ *
+ * Carries a cover from either source. `coverId` is Open Library's;
+ * `appleArtworkUrl` is a direct image URL from Apple Books, used where Open
+ * Library knows the book but has no picture of it. A result may legitimately
+ * have neither — a coverless hit is still worth showing, since the reader can
+ * add their own cover and the title and author are the tedious part to type.
+ */
 export interface CoverSearchResult {
   key: string
   title: string
   author: string
   coverId?: number
+  /** Full-size Apple artwork URL, already resized. */
+  appleArtworkUrl?: string
   isbn13?: string
   firstPublishYear?: number
 }
