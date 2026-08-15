@@ -2,7 +2,7 @@ import { forwardRef } from 'react'
 import { POSTER, poster as posterTokens } from '../../design/tokens'
 import { layoutGrid } from '../../domain/layout'
 import { getTypeface } from '../../design/typefaces'
-import type { Board, Book } from '../../types/domain'
+import { supportsCoverBleed, type Board, type Book } from '../../types/domain'
 import { PosterBackground } from './PosterBackground'
 import { PosterSlot } from './PosterSlot'
 import styles from './Poster.module.css'
@@ -43,9 +43,19 @@ export const Poster = forwardRef<HTMLDivElement, PosterProps>(function Poster(
   const scale = displayWidth / POSTER.width
 
   const { columns, rows } = board.grid
+
+  /**
+   * Cover bleed only applies where it does not wreck the covers.
+   *
+   * The flag is kept on the board even while a shape cannot honour it, so
+   * moving from 4x4 to 5x2 and back restores the mode rather than silently
+   * forgetting it. See `supportsCoverBleed` for why the shape decides.
+   */
+  const isBleeding = board.coverBleed === true && supportsCoverBleed(board.grid)
+
   // Slot size and grid position are fitted to the frame and to the real height
   // of the title block, never assumed — see `layoutGrid`.
-  const { slotWidth, slotHeight, gridTop } = layoutGrid(board.grid, board.text)
+  const { slotWidth, slotHeight, gridTop } = layoutGrid(board.grid, board.text, isBleeding)
 
   const titleText =
     typeface.titleCase === 'upper' ? board.text.title.toUpperCase() : board.text.title
@@ -78,11 +88,28 @@ export const Poster = forwardRef<HTMLDivElement, PosterProps>(function Poster(
         />
 
         <div className={styles.content}>
+          {/*
+            In bleed mode the type sits ON the covers rather than above them,
+            so it needs a ground of its own — a white title on a pale cover is
+            invisible, and the covers are unpredictable by definition. The same
+            gradient scrim `PosterSlot` uses for its stars, for the same reason.
+
+            The scrims are part of the artwork and export with it. Fixed rgba,
+            never a token: this is inside the PNG.
+          */}
+          {isBleeding && <div className={styles.topScrim} aria-hidden />}
+          {isBleeding && board.text.caption && (
+            <div className={styles.bottomScrim} aria-hidden />
+          )}
+
           <header
             className={styles.header}
             style={{
               paddingTop: posterTokens.titleTop,
               paddingInline: posterTokens.marginX,
+              // Above the covers when they run underneath it.
+              position: isBleeding ? 'relative' : undefined,
+              zIndex: isBleeding ? 1 : undefined,
             }}
           >
             {/* The plate hugs the type rather than spanning the frame, so it
@@ -139,7 +166,10 @@ export const Poster = forwardRef<HTMLDivElement, PosterProps>(function Poster(
               right: 0,
               gridTemplateColumns: `repeat(${columns}, ${slotWidth}px)`,
               gridAutoRows: `${slotHeight}px`,
-              gap: posterTokens.gridGap,
+              // No gap in bleed mode: the covers meet.
+              gap: isBleeding ? 0 : posterTokens.gridGap,
+              // Behind the type and its scrims, which overlay the artwork.
+              zIndex: isBleeding ? 0 : undefined,
             }}
           >
             {Array.from({ length: columns * rows }, (_, index) => {
@@ -155,7 +185,13 @@ export const Poster = forwardRef<HTMLDivElement, PosterProps>(function Poster(
                   coverUrl={coverUrl}
                   inkColor={board.text.inkColor}
                   fontFamily={typeface.stack}
-                  showRating={board.showRatings === true}
+                  // Ratings get busy fast with no gaps between the covers, and
+                  // the mode is about the books rather than the reviews. The
+                  // board's own setting is left untouched, so turning bleed off
+                  // brings the stars back.
+                  showRating={board.showRatings === true && !isBleeding}
+                  isFavourite={book !== undefined && book.id === board.favouriteBookId}
+                  isBleeding={isBleeding}
                   slotWidth={slotWidth}
                   isExporting={isExporting}
                   onClick={onSlotClick}
@@ -170,6 +206,8 @@ export const Poster = forwardRef<HTMLDivElement, PosterProps>(function Poster(
               style={{
                 paddingBottom: posterTokens.captionBottom,
                 paddingInline: posterTokens.marginX,
+                position: isBleeding ? 'relative' : undefined,
+                zIndex: isBleeding ? 1 : undefined,
               }}
             >
               {/*

@@ -1,6 +1,7 @@
 import { DEFAULT_BACKGROUND_ID, getBuiltinBackground } from '../design/backgrounds'
 import { DEFAULT_TYPEFACE_ID } from '../design/typefaces'
 import { color } from '../design/tokens'
+import { inkForColor } from '../design/palette'
 import { monthName } from '../import/goodreads'
 import {
   DEFAULT_GRID,
@@ -155,6 +156,25 @@ export function createBoard(month: string = currentMonthKey(), title?: string): 
 }
 
 /**
+ * Drop a favourite that is no longer on the poster.
+ *
+ * Every mutation that can remove a book runs through this. A `favouriteBookId`
+ * pointing at a book that has left renders no mark at all, which looks like the
+ * feature quietly breaking rather than like the book having gone — and it comes
+ * back to life if that book is ever placed again, marking something the reader
+ * never chose.
+ *
+ * Applied here in the domain rather than in the component, because it is a
+ * property of the board being consistent, not of anything being displayed.
+ */
+function withValidFavourite(board: Board): Board {
+  if (!board.favouriteBookId) return board
+  if (board.slots.some((slot) => slot.bookId === board.favouriteBookId)) return board
+
+  return { ...board, favouriteBookId: undefined }
+}
+
+/**
  * Resize the grid, preserving which book sits in which slot wherever the slot
  * still exists. Books in slots that fall outside the new grid are dropped from
  * the poster but remain in the library, so shrinking is not destructive.
@@ -164,17 +184,25 @@ export function resizeGrid(board: Board, grid: GridConfig): Board {
   const kept = board.slots.filter((slot) => slot.index < capacity)
   const byIndex = new Map(kept.map((slot) => [slot.index, slot]))
 
-  return {
+  return withValidFavourite({
     ...board,
     grid,
     slots: Array.from({ length: capacity }, (_, index) => byIndex.get(index) ?? { index }),
-  }
+  })
 }
 
 export function setSlotBook(board: Board, index: number, bookId: string | undefined): Board {
-  return {
+  return withValidFavourite({
     ...board,
     slots: board.slots.map((slot) => (slot.index === index ? { index, bookId } : slot)),
+  })
+}
+
+/** Mark a book as this poster's favourite, or tapping the marked one clears it. */
+export function setFavouriteBook(board: Board, bookId: string): Board {
+  return {
+    ...board,
+    favouriteBookId: board.favouriteBookId === bookId ? undefined : bookId,
   }
 }
 
@@ -190,11 +218,12 @@ export function fillSlots(board: Board, books: readonly Book[]): Board {
     cursor += 1
   }
 
-  return { ...board, slots }
+  return withValidFavourite({ ...board, slots })
 }
 
 export function clearSlots(board: Board): Board {
-  return { ...board, slots: emptySlots(board.grid) }
+  // Nothing is left on the poster, so nothing can be its favourite.
+  return { ...board, slots: emptySlots(board.grid), favouriteBookId: undefined }
 }
 
 /** Move a book between slots, swapping if the destination is occupied. */
@@ -232,7 +261,12 @@ export function inkForBackground(board: Board): string {
       ? color.posterInkDark
       : color.posterInk
   }
-  // Uploads and custom colours are unknowable without sampling; white reads
-  // acceptably over most photography and the user can flip it.
+  // A flat colour is entirely knowable — it is one value, and its luminance
+  // decides the ink outright. Only photography has to be guessed at.
+  if (board.background.kind === 'color') {
+    return inkForColor(board.background.value)
+  }
+  // Uploads are unknowable without sampling; white reads acceptably over most
+  // photography and the user can flip it.
   return color.posterInk
 }

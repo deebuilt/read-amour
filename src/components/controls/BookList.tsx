@@ -1,4 +1,5 @@
-import { Button, Popconfirm, Typography } from 'antd'
+import { Button, Popconfirm, Tooltip, Typography } from 'antd'
+import { CrownFilled, CrownOutlined } from '@ant-design/icons'
 import { color, fontSize } from '../../design/tokens'
 import type { Board, Book } from '../../types/domain'
 import styles from './BookList.module.css'
@@ -23,6 +24,8 @@ interface BookListProps {
   books: Map<string, Book>
   coverUrls: Map<string, string>
   onSlotClick: (index: number) => void
+  /** Mark this book as the poster's favourite, or unmark it if it already is. */
+  onToggleFavourite: (bookId: string) => void
   /** Empty every slot on this poster, keeping its design. */
   onClearAll: () => void
 }
@@ -53,7 +56,14 @@ function ratingStars(rating: number): string {
   return '★'.repeat(filled) + '☆'.repeat(5 - filled)
 }
 
-export function BookList({ board, books, coverUrls, onSlotClick, onClearAll }: BookListProps) {
+export function BookList({
+  board,
+  books,
+  coverUrls,
+  onSlotClick,
+  onToggleFavourite,
+  onClearAll,
+}: BookListProps) {
   const entries = booksInSlotOrder(board, books)
 
   if (entries.length === 0) {
@@ -79,8 +89,16 @@ export function BookList({ board, books, coverUrls, onSlotClick, onClearAll }: B
           const coverUrl = book.coverBlobKey ? coverUrls.get(book.coverBlobKey) : undefined
           const finished = book.dateRead ? formatDateRead(book.dateRead) : undefined
 
+          const isFavourite = board.favouriteBookId === book.id
+
           return (
-            <li key={`${index}-${book.id}`}>
+            /*
+             * Two controls per row, not one. The row opens the slot editor and
+             * the star toggles the favourite, so they cannot be nested — a
+             * button inside a button is invalid and the inner one is what
+             * screen readers and browsers disagree about.
+             */
+            <li key={`${index}-${book.id}`} className={styles.rowWrap}>
               <button type="button" className={styles.row} onClick={() => onSlotClick(index)}>
                 <span className={styles.coverWrap}>
                   {coverUrl && <img className={styles.cover} src={coverUrl} alt="" />}
@@ -107,6 +125,27 @@ export function BookList({ board, books, coverUrls, onSlotClick, onClearAll }: B
                   )}
                 </span>
               </button>
+
+              {/*
+                One favourite per poster, so this behaves as a radio rather than
+                a checkbox — marking a second book moves the mark rather than
+                adding one. Tapping the marked book clears it.
+              */}
+              <Tooltip title={isFavourite ? 'Your favourite' : 'Make this your favourite'}>
+                <button
+                  type="button"
+                  className={isFavourite ? styles.favouriteOn : styles.favourite}
+                  onClick={() => onToggleFavourite(book.id)}
+                  aria-pressed={isFavourite}
+                  aria-label={
+                    isFavourite
+                      ? `${book.title} is your favourite. Tap to unmark it`
+                      : `Mark ${book.title} as your favourite`
+                  }
+                >
+                  {isFavourite ? <CrownFilled /> : <CrownOutlined />}
+                </button>
+              </Tooltip>
             </li>
           )
         })}

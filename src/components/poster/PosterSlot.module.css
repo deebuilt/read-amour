@@ -48,6 +48,26 @@
 }
 
 /*
+ * The favourite mark: a star in the top corner.
+ *
+ * The glyph is centred inside a box the same size as its own type, so the
+ * radial glow behind it is concentric with the star rather than offset by the
+ * font's internal leading. Every dimension is set inline from the slot width —
+ * see `PosterSlot.tsx`.
+ *
+ * `line-height: 1` matters: the default would push the glyph off-centre inside
+ * the glow, which is visible at 2x2 where the mark is nearly 100px across.
+ */
+.favouriteMark {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+}
+
+/*
  * Stand-in for a book whose edition has no cover art.
  *
  * Sizes are in export pixels against the 1080x1920 canvas, like everything

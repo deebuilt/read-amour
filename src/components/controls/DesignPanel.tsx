@@ -10,7 +10,8 @@ import { PanelSection } from './PanelSection'
 import { color, fontSize } from '../../design/tokens'
 import { filledCount, resizeGrid } from '../../domain/board'
 import { storeUploadedImage } from '../../api/covers'
-import { type Board } from '../../types/domain'
+import { useCoverPalette } from '../../hooks/useCoverPalette'
+import { GRID_LAYOUTS, supportsCoverBleed, type Board } from '../../types/domain'
 import styles from './DesignPanel.module.css'
 
 /**
@@ -28,10 +29,31 @@ import styles from './DesignPanel.module.css'
 
 interface DesignPanelProps {
   board: Board
+  /** Resolved cover URLs, which the sampled palette is extracted from. */
+  coverUrls: Map<string, string>
   onChange: (board: Board) => void
 }
 
-export function DesignPanel({ board, onChange }: DesignPanelProps) {
+export function DesignPanel({ board, coverUrls, onChange }: DesignPanelProps) {
+  /**
+   * Grounds pulled out of the covers on this poster. Empty until they have been
+   * sampled, and empty for a poster with no covers yet — the row simply is not
+   * there, rather than being there and disabled.
+   */
+  const coverPalette = useCoverPalette(coverUrls)
+
+  /**
+   * Whether this poster's shape can run its covers edge to edge.
+   *
+   * The list of shapes that can is derived from the catalogue rather than
+   * written into the copy, so adding a square layout updates the sentence and
+   * cannot leave it lying.
+   */
+  const canBleed = supportsCoverBleed(board.grid)
+  const bleedShapes = GRID_LAYOUTS.filter(supportsCoverBleed)
+    .map((layout) => `${layout.columns} × ${layout.rows}`)
+    .join(', ')
+
   /**
    * A large photo is downscaled before it is stored, which takes long enough on
    * a phone to look like nothing happened. The button says so.
@@ -74,7 +96,9 @@ export function DesignPanel({ board, onChange }: DesignPanelProps) {
       case 'upload':
         return 'Your photo'
       case 'color':
-        return 'Custom colour'
+        // Sampled grounds are the only way a board gets a bare colour, so the
+        // summary can say where it came from rather than "custom".
+        return 'From your books'
     }
   }
 
@@ -149,6 +173,50 @@ export function DesignPanel({ board, onChange }: DesignPanelProps) {
             )
           })}
         </div>
+
+        {/*
+          Grounds sampled from the covers on this poster.
+
+          Below the builtins rather than above: the builtins are the stable set
+          that is always there and always the same, and a row whose contents
+          change with the books would make the section reshuffle itself as
+          covers land. It appears only once there are covers to sample.
+
+          The hue is the covers'; the saturation and lightness are not — a
+          literal dominant colour is usually a near-black or a blaring red, and
+          behind sixteen covers it competes with all of them. See `palette.ts`.
+        */}
+        {coverPalette.length > 0 && (
+          <div className={styles.paletteGroup}>
+            <Typography.Text className={styles.groupHeading}>From your books</Typography.Text>
+            <div className={styles.swatches}>
+              {coverPalette.map((swatch) => {
+                const isActive =
+                  board.background.kind === 'color' && board.background.value === swatch.value
+                return (
+                  <button
+                    key={swatch.value}
+                    type="button"
+                    className={isActive ? styles.swatchActive : styles.swatch}
+                    style={{ background: swatch.value }}
+                    onClick={() =>
+                      onChange({
+                        ...board,
+                        background: { kind: 'color', value: swatch.value },
+                        // A colour the app computed is knowable, so the ink is
+                        // decided rather than defaulted to white the way an
+                        // uploaded photograph has to be.
+                        text: { ...board.text, inkColor: swatch.ink },
+                      })
+                    }
+                    aria-label={`${swatch.tone === 'tint' ? 'Pale' : 'Deep'} ground from your covers`}
+                    aria-pressed={isActive}
+                  />
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {/*
           The button says whether a photo is already in use, and shows while one
@@ -237,12 +305,37 @@ export function DesignPanel({ board, onChange }: DesignPanelProps) {
           <div className={styles.switchText}>
             <Typography.Text className={styles.label}>Show ratings</Typography.Text>
             <Typography.Text style={{ fontSize: fontSize.xs, color: color.inkFaint }}>
-              Stars on books you rated. Unrated books stay bare.
+              {canBleed && board.coverBleed === true
+                ? 'Hidden while the covers run edge to edge.'
+                : 'Stars on books you rated. Unrated books stay bare.'}
             </Typography.Text>
           </div>
           <Switch
             checked={board.showRatings === true}
             onChange={(showRatings) => onChange({ ...board, showRatings })}
+          />
+        </div>
+
+        {/*
+          Only offered on the shapes that can carry it. On a 5x2 the covers
+          would lose two thirds of their height, which is not a look — it is the
+          artwork being destroyed by a control that gave no warning. So the row
+          explains what the shape has to be rather than appearing as a switch
+          that produces a bad poster. See `supportsCoverBleed`.
+        */}
+        <div className={styles.switchRow}>
+          <div className={styles.switchText}>
+            <Typography.Text className={styles.label}>Covers edge to edge</Typography.Text>
+            <Typography.Text style={{ fontSize: fontSize.xs, color: color.inkFaint }}>
+              {canBleed
+                ? 'No margins, no title band. Covers crop to fill the frame.'
+                : `Needs a square layout — ${bleedShapes}.`}
+            </Typography.Text>
+          </div>
+          <Switch
+            checked={canBleed && board.coverBleed === true}
+            disabled={!canBleed}
+            onChange={(coverBleed) => onChange({ ...board, coverBleed })}
           />
         </div>
       </section>

@@ -54,6 +54,28 @@ off Unsplash at 4000px for a 1080px poster. Originals back up to
 Credit every image in `CREDITS.txt` — parsed at build time into the About
 panel. Unsplash doesn't require it; we do it anyway.
 
+## A grid item holding an image needs `min-width: 0`
+
+Search results came out uneven and pushed past the edge of the drawer whenever
+one cover's source image was larger than the rest — Apple artwork especially,
+which arrives at whatever size the storefront supplies.
+
+It looked like an image-sizing problem and was not. `.result` is a **grid item**,
+and a grid item defaults to `min-width: auto`, which means it refuses to shrink
+below the intrinsic width of its contents. A 600px-wide cover therefore widened
+its own track past the `1fr` it was given, and the whole grid overflowed.
+
+`object-fit: cover` does not prevent this, and that is the part worth
+remembering: it governs how an image *paints inside its box*, not how large the
+box is allowed to become. The track is sized before the paint ever happens.
+
+The fix is `min-width: 0` on the item, plus an explicit `width: 100%` on the
+tile and `max-width: 100%` on the image so nothing contributes an intrinsic
+width to track sizing. **Any new grid of images wants all three.** The other
+grids in the app — `.photos`, `.swatches`, `.options` — are safe: the first pins
+its images to `width: 100%` inside an `aspect-ratio` box, and the other two hold
+no images at all.
+
 ## Conventions
 
 - Ant Design for chrome, hand-built components for the poster.
@@ -184,6 +206,11 @@ a pale cover. Over a coverless book's tinted plate there is nothing to scrim, so
 they take the poster's ink instead. Every colour involved is a literal hex —
 this is inside the exported PNG.
 
+Cover bleed forces them off — with no gaps between the covers the stars read as
+clutter, and the mode is about the books rather than the reviews. It overrides
+at render time and leaves `board.showRatings` alone, so turning bleed off brings
+them back rather than making the reader re-find the switch.
+
 ## Two catalogues, because neither is enough
 
 Search goes through `api/bookSearch.ts`, which queries Open Library and Apple
@@ -276,7 +303,7 @@ quota-limited to zero from some networks (a hard 429 on 2026-08-15), so even the
 metadata-only fallback would fail unpredictably. Apple supersedes that whole
 plan.
 
-## Only nine grid shapes, and rows never exceed columns
+## A fixed catalogue of grid shapes, and rows never exceed columns
 
 The grid used to be two sliders, 2–5 columns by 2–6 rows. Most of the shapes
 they could reach did not fill the poster: a 2×6 grid strands **378px of margin
@@ -294,10 +321,17 @@ square-or-wider shape is width-bound and fills the frame at the designed 72px
 margin. Every taller-than-wide shape strands margin, in proportion to how tall.
 
 So the shape is not a free choice, and `GRID_LAYOUTS` in `types/domain.ts` is
-the whole catalogue — 4, 6, 8, 9, 10, 12, 15, 16, 20 books. Anything added to
-it must satisfy rows ≤ columns. 5×5 (25) satisfies that and is still left out
+the whole catalogue — 1, 2, 4, 6, 8, 9, 10, 12, 15, 16, 20 books. Anything added
+to it must satisfy rows ≤ columns. 5×5 (25) satisfies that and is still left out
 on purpose: 152px slots on a 1080px poster are a postage stamp on a phone and
 turn the star ratings into specks.
+
+1×1 and 2×1 were added on 2026-08-16, below what had been a floor of four —
+which forced a reader with one book she loved into a grid with three empty
+rectangles. 1×1 was expected to strand margin and does not: `layoutGrid`'s
+generous path lets a one-row grid claim the bottom clearance, so it lands
+width-bound at the full 936px like every other shape. Only a caption *with* a
+title plate pushes it to 852px.
 
 The picker offers these by **capacity first** — the user is choosing how many
 books fit, not solving a geometry problem — with the shape shown underneath,
@@ -446,6 +480,146 @@ The bar button and the sheet's save row carry the same `SaveOutlined` mark, so
 the save path reads as one action from the bar through to the choice. It is a
 floppy disk, which is a slightly odd fit for an app with nothing to save — the
 posters save themselves — but it was chosen deliberately over the download tray.
+
+## Shipped 2026-08-16 — Tier 1
+
+Four items from `docs/NEXT_LEVEL.md`, plus the update prompt that was put ahead
+of them. Full notes and the corrections to the plan are in that doc's progress
+log; what follows is what a future session needs to know.
+
+**The service worker now prompts rather than updating silently.**
+`registerType` is `prompt`, not `autoUpdate`, and `UpdateBanner` offers the
+reload. These two are a pair — flipping the config back would leave the banner
+announcing something that had already happened. None of it can be tested on the
+dev server; service workers need `npm run build` then `npm run preview`.
+
+**Grounds are sampled from the covers.** `design/palette.ts` is pure and
+`useCoverPalette` owns the async — extraction decodes blobs, so it cannot be a
+`useMemo`. It keeps each source colour's *hue* and overrides saturation and
+lightness: the literal dominant colour of a book cover is usually a near-black
+or a blaring red, which behind sixteen covers competes with all of them. A
+ground should recall the covers, not match them.
+
+**Source colours must be separated by hue, not just ranked by population.** The
+first version took the top three buckets, and a histogram of book covers is
+dominated by *one* hue in slightly different shades — so the top three came back
+as three reds, each yielded a pale and a deep ground, and the row showed what
+was visibly the same swatch five times. Real output from four covers:
+`#eddee0`, `#451c20`, `#eddedf`, `#451c1f`, `#eddee0`, `#451c20`. Two pairs
+differ by a single hex digit.
+
+Distinctness has to be a **condition of selection**, not a filter afterwards —
+by the time both grounds are derived, the duplicate is already there, and an
+exact-hex dedupe cannot see that `#eddee0` and `#eddedf` are the same colour.
+`MIN_HUE_SEPARATION` is 0.08 of the wheel (~29°). Near-greys are held to a
+saturation test instead, because hue is unstable below about 0.2 saturation and
+two barely-tinted creams can report hues a third of the wheel apart.
+
+**A ground must stay recognisably the colour it was sampled from.** The first
+`asGround()` clamped saturation to 28% and forced lightness to 0.9 or 0.19,
+which was defensible as theory and destroyed the feature in practice:
+Fahrenheit 451's `#ce2a1e` came out `#eddfde`, a faintly pink off-white; The
+Book of Koli's foliage green came out `#e7edde`, a faintly green off-white.
+Nearly every cover collapsed to the same pale neutrals. Ruthnie's verdict —
+"the colors don't seem to match my books... I don't know where they're pulling
+the colors from" — was exactly right, and it is the only test that matters for
+a row labelled *From your books*: **can you tell which book each colour came
+from?**
+
+The clamps are proportional now (`s * 0.7` capped at 0.5 for tints, `s * 0.85`
+capped at 0.62 for shades; lightness 0.84 and 0.24). A muted cover yields a
+muted ground and a bold cover a bold one. Contrast was re-verified across every
+hue at six saturations after the change: worst case 10.1:1 on tints and 6.3:1 on
+shades, no hue near the ink threshold.
+
+`MIN_USEFUL_SATURATION` is 0.25, not the original 0.12. Below that a pixel is
+cover ink or paper, and a grey ground labelled "from your books" is true and
+useless. A genuinely monochrome set of covers now yields fewer swatches or none,
+which is the honest outcome.
+
+**The lesson for any future sampling work:** every constant in this file trades
+safety against recognisability, and the first version tuned all of them for
+safety. The result was a feature that could not be wrong and could not be
+useful. Check output against real covers, not against a contrast table.
+
+`inkForBackground()` now answers properly for `kind: 'color'` rather than
+defaulting to white. A colour the app computed is knowable; only photography
+has to be guessed at.
+
+**A poster can hold one book, or two.** `GRID_LAYOUTS` gained 1x1 and 2x1.
+Contrary to what the plan predicted, 1x1 is width-bound at the full 936px —
+`layoutGrid`'s generous path lets a one-row grid claim the bottom clearance. It
+only goes height-bound with a caption *and* a title plate.
+
+**One book per poster can be marked the favourite.** `favouriteBookId` lives on
+the `Board`, never on the `Book` — a book is shared across posters and can be
+August's favourite without being September's. A **white crown** in the top
+corner of the cover, sized from `slotWidth` like the ratings, on a soft radial
+glow.
+
+The glow is not decoration: cover art is unpredictable by definition, so a mark
+of any one colour will land on a cover that swallows it. It is the rating band's
+scrim problem at a size where a full band would be absurd, so a radial fade
+gives the mark its own ground without an edge that would read as a badge.
+
+## The favourite mark took three tries, and both failures are instructive
+
+**A gold rule** across the foot of the cover. The reasoning — a badge reads as
+UI chrome, a rule reads as artwork — was true on both counts and still produced
+the wrong mark, because it never asked whether the mark *meant* anything. A
+horizontal line does not say "favourite". Ruthnie: "a gold bar that doesn't
+really read as favorite."
+
+**A gold star**, which fixed the meaning and broke something else: the poster
+already draws gold stars for ratings, so a favourite that was also rated showed
+a gold star in the corner and four more along the foot — same glyph, same
+colour, two unrelated meanings on one cover. Visible in her screenshot within
+minutes. **A mark can never be the same symbol as the thing it must be
+distinguished from**, and it should not borrow that thing's colour either.
+
+**A white crown.** Says "best of these" with no legend, is used nowhere else in
+the app, and cannot be read as a score however many stars sit below it.
+
+The crown is an **inline SVG, not a glyph** — `CrownMark` in `PosterSlot.tsx`.
+The Unicode crown is emoji-presentation on most platforms, so a glyph would be
+full-colour on one device, monochrome on another, and tofu where no font has it.
+Nothing baked into an exported PNG may be at the mercy of font fallback.
+
+The `BookList` toggle uses antd's crown and the accent colour rather than gold,
+for the same collision reason — each row can also show gold rating stars.
+
+In cover-bleed mode the mark moves to the **bottom-left** corner: the poster
+title overlays the covers behind a 560px scrim, which on a 2x2 swallows more
+than half the top row. The foot is free there because bleed forces ratings off.
+
+**A dangling favourite must never survive a slot mutation.**
+`withValidFavourite()` in `domain/board.ts` runs inside `resizeGrid`,
+`setSlotBook` and `fillSlots`; `clearSlots` drops the id outright. An id
+pointing at a book that has left renders no mark, which reads as the feature
+breaking — and worse, it comes back to life if that book is ever replaced,
+marking something the reader never chose. Any new slot mutation goes through the
+same guard.
+
+## Cover bleed belongs to square grids only
+
+`coverBleed` drops the margins, the gap and the title band, and the covers crop
+to fill. How much of a cover survives is decided entirely by how far the slot's
+aspect sits from 2:3, and the spread is brutal: 16% lost on the square shapes,
+32% on 5x4, 44% on 3x2, 58% on 2x1, **66% on 5x2**.
+
+The 16% is not luck. The frame is 9:16, so a grid whose columns-to-rows ratio
+equals the frame's own yields slots that are themselves 9:16 — and those are
+exactly the square shapes. `supportsCoverBleed()` encodes that, and the switch
+in `DesignPanel` explains what the shape must be rather than letting the reader
+produce a ruined poster and blame the mode.
+
+The flag persists while an unsupported shape is selected, so returning to a
+square grid restores the mode instead of silently forgetting it.
+
+This is the one place the 2:3 lock is deliberately broken. Cropping is the point
+of a bleed layout — but note that `supportsCoverBleed` is derived from the 9:16
+frame, so **2.2 (other frames) would have to re-derive it** along with the grid
+catalogue.
 
 ## What to build next
 

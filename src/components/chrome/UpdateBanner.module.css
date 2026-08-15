@@ -1,0 +1,31 @@
+/*
+ * Sits between the stage and the action bar, in the shell's flex flow rather
+ * than floating over it. Overlaying would put it on top of the poster, which is
+ * the one thing on screen worth protecting — and a bar that pushes the layout
+ * by its own height is honest about the room it takes.
+ *
+ * Chrome, not poster: every colour here is a theme variable.
+ */
+.banner {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--ra-line);
+  background: var(--ra-accent-soft);
+}
+
+.text {
+  font-size: 13px;
+  color: var(--ra-ink);
+  min-width: 0;
+}
+
+.actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}

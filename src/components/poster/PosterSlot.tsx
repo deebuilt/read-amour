@@ -21,6 +21,13 @@ interface PosterSlotProps {
   fontFamily: string
   /** Whether a rated book shows its stars over the cover. */
   showRating: boolean
+  /** Whether this is the poster's favourite, and takes the mark. */
+  isFavourite: boolean
+  /**
+   * Cover-bleed mode: slots tile the frame edge to edge, so this one is no
+   * longer 2:3 and its cover crops to fill rather than fitting.
+   */
+  isBleeding: boolean
   /**
    * This slot's width in export pixels. Stars are sized from it — a fixed size
    * looks right at one grid shape and wrong at every other, and a 2x2 grid has
@@ -55,6 +62,73 @@ const STAR_WIDTH_RATIO = 0.13
 const STAR_GOLD = '#f0b429'
 const STAR_SHADOW = 'rgba(12, 10, 9, 0.55)'
 
+/**
+ * The crown, drawn rather than typed.
+ *
+ * A glyph would be at the mercy of whatever font resolved it: the Unicode crown
+ * is emoji-presentation on most platforms, so it would arrive full-colour on
+ * one device, monochrome on another, and as tofu where no font has it. That is
+ * unacceptable for something baked into an exported PNG — the export must look
+ * the same everywhere, and this is the one mark that cannot be allowed to
+ * silently become a box.
+ *
+ * Five points and a band, on a 24x24 viewBox. Drawn flat, with no gradient or
+ * inner detail, because at 4x4 the whole mark is 44px wide on the export canvas
+ * and any interior line closes up into a smudge.
+ */
+function CrownMark({ size, color }: { size: number; color: string }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        d="M3 8.5l3.6 2.9L12 4l5.4 7.4L21 8.5l-1.7 9.6H4.7L3 8.5z"
+        fill={color}
+        stroke={color}
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+/**
+ * The favourite mark: a crown in the top corner of the cover.
+ *
+ * Two wrong marks preceded it, and both failures are worth keeping.
+ *
+ * It was a **gold rule** across the foot first, argued for on the grounds that
+ * a badge reads as UI chrome while a rule reads as artwork. Both true, and
+ * still wrong: a horizontal line does not *mean* anything. It reads as a design
+ * element, and on a busy cover it was not visible at all.
+ *
+ * So it became a **gold star** — which fixed the meaning and broke something
+ * else. The poster already draws gold stars for ratings, so a favourite that
+ * was also rated showed a gold star in the corner and four more along the foot:
+ * same glyph, same colour, two unrelated meanings on one cover. A mark cannot
+ * be the same symbol as the thing it must be distinguished from.
+ *
+ * A crown says "best of these" with no legend, and the app uses it nowhere
+ * else — so it cannot be confused with a rating however many stars sit below
+ * it. It also does not need to be gold to be understood, which frees the colour
+ * to be the poster's own ink rather than a second accent.
+ *
+ * The chrome a badge risks is still avoided the same way: a soft radial glow
+ * rather than a pill. A hard edge reads as UI stuck onto the art; a fade reads
+ * as emphasis printed into it.
+ *
+ * Every value is a fraction of slot width, never fixed px — a mark tuned at 4x4
+ * is a speck at 2x2. Same trap as `STAR_WIDTH_RATIO`, which has caught this
+ * project twice.
+ */
+const FAVOURITE_MARK_RATIO = 0.2
+const FAVOURITE_INSET_RATIO = 0.06
+
 function emptyFill(inkColor: string): { background: string; line: string } {
   return isLightInk(inkColor)
     ? { background: 'rgba(255, 255, 255, 0.16)', line: 'rgba(255, 255, 255, 0.30)' }
@@ -68,6 +142,8 @@ export function PosterSlot({
   inkColor,
   fontFamily,
   showRating,
+  isFavourite,
+  isBleeding,
   slotWidth,
   isExporting,
   onClick,
@@ -108,6 +184,30 @@ export function PosterSlot({
   const starSize = Math.round(slotWidth * STAR_WIDTH_RATIO)
   const bandPadding = Math.round(starSize * 0.42)
 
+  /**
+   * The favourite star.
+   *
+   * Top corner, which is the one part of a cover that is reliably quiet —
+   * titles and author names sit centre and low, and the rating band already
+   * owns the foot. Putting the two marks at opposite ends means a book that is
+   * both rated and the favourite shows both without either being moved.
+   */
+  const favouriteSize = Math.round(slotWidth * FAVOURITE_MARK_RATIO)
+  const favouriteInset = Math.round(slotWidth * FAVOURITE_INSET_RATIO)
+
+  /**
+   * In bleed mode the mark moves to the bottom corner.
+   *
+   * The poster's title overlays the covers there, sitting in a scrim 560px deep
+   * — on a 2x2 bleed poster that is more than half of the top row, so a star in
+   * the top corner would be dimmed by the scrim and crowded by the title. The
+   * foot of the slot is free instead, because bleed forces the rating band off.
+   *
+   * Bottom-left rather than bottom-right, so the marks on the two lower slots
+   * of a 2x2 do not collide with the caption running across the middle.
+   */
+  const favouriteAtFoot = isBleeding
+
   return (
     <div
       className={styles.slot}
@@ -115,7 +215,12 @@ export function PosterSlot({
         // A coverless book keeps the tinted plate an empty slot has: its type
         // needs a ground to sit on, or it floats directly on the photograph.
         background: isFilled ? 'transparent' : fill.background,
-        boxShadow: isFilled ? 'none' : `inset 0 0 0 1.5px ${fill.line}`,
+        // No inset rule in bleed mode. The rules are what separate slots when
+        // there are margins between them; with the covers meeting edge to edge
+        // they would draw a grid over an image that is meant to read as one
+        // surface. An empty slot still tints, so a gap is visible as absence
+        // rather than as a framed hole.
+        boxShadow: isFilled || isBleeding ? 'none' : `inset 0 0 0 1.5px ${fill.line}`,
         cursor: isExporting ? 'default' : 'pointer',
       }}
       onClick={isExporting ? undefined : () => onClick?.(index)}
@@ -131,7 +236,11 @@ export function PosterSlot({
               }
             }
       }
-      aria-label={book ? `${book.title} by ${book.author}` : `Empty slot ${index + 1}`}
+      aria-label={
+        book
+          ? `${book.title} by ${book.author}${isFavourite ? '. Favourite of this poster' : ''}`
+          : `Empty slot ${index + 1}`
+      }
     >
       {coverUrl && (
         <img
@@ -176,6 +285,49 @@ export function PosterSlot({
           >
             {ratedStars}
           </span>
+        </div>
+      )}
+
+      {/*
+        The favourite mark.
+
+        White rather than gold, and that is the whole point of the change. Gold
+        is the rating colour, so a gold mark on a rated book put the same colour
+        and the same glyph in two places on one cover meaning two different
+        things. A white crown on a dark scrim cannot be mistaken for a score.
+
+        The glow is not decoration. Cover art is unpredictable by definition, so
+        a mark of any single colour will land on a cover that swallows it — this
+        is the problem the rating band solves with a scrim, at a size where a
+        full band would be absurd. A radial fade gives the crown its own ground
+        without an edge that would read as a badge stuck onto the artwork.
+
+        Fixed hex throughout, like every colour that ends up inside the PNG.
+      */}
+      {isFavourite && (
+        <div
+          className={styles.favouriteMark}
+          style={{
+            top: favouriteAtFoot ? undefined : favouriteInset,
+            bottom: favouriteAtFoot ? favouriteInset : undefined,
+            left: favouriteAtFoot ? favouriteInset : undefined,
+            right: favouriteAtFoot ? undefined : favouriteInset,
+            width: favouriteSize,
+            height: favouriteSize,
+            // Sized from the mark so the fade stays in proportion at every grid
+            // shape, and reaches past the crown rather than stopping at it.
+            background: isCoverless
+              ? 'none'
+              : `radial-gradient(circle, rgba(12, 10, 9, 0.62) 0%, rgba(12, 10, 9, 0.42) 48%, rgba(12, 10, 9, 0) 74%)`,
+          }}
+        >
+          {/* Over a coverless book's tinted plate there is no scrim, so the
+              crown takes the poster's ink the way that book's type already
+              does — a white mark would float on a pale poster. */}
+          <CrownMark
+            size={Math.round(favouriteSize * 0.62)}
+            color={isCoverless ? inkColor : '#ffffff'}
+          />
         </div>
       )}
 

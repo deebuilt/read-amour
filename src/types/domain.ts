@@ -67,15 +67,32 @@ export interface GridConfig {
  *
  * So the shape is not a free choice. Two sliders asked the user to solve a
  * geometry problem in order to answer the question she actually has, which is
- * how many books fit. These nine are the shapes that make a good poster, and
- * the control offers them by capacity.
+ * how many books fit. These are the shapes that make a good poster, and the
+ * control offers them by capacity.
  *
  * 5x5 (25) is deliberately absent though it is width-bound and legal: slots
  * come out 152px wide on a 1080px poster, which is a postage stamp on a phone
  * and turns the star ratings into specks. Add it if 25-book months are ever
  * actually asked for.
+ *
+ * 1x1 and 2x1 sit below what used to be the floor. Four slots was the smallest
+ * poster on offer, which forced a reader with one book she loved into a grid
+ * with three empty rectangles. Both satisfy rows <= columns, so the geometry
+ * rule holds.
+ *
+ * 1x1 was expected to be the exception — a single 2:3 slot at full width is
+ * 1404px tall, which is more vertical space than the frame has between the
+ * title and the bottom margin, so it looked like it would come out height-bound
+ * and strand margin. It does not. `layoutGrid` lets a tall grid claim the bottom
+ * clearance down to `gridBottomMin`, and at one row that is enough: the slot
+ * lands at the full 936px, width-bound, at the designed 72px margin like every
+ * other shape here. The one case that does go height-bound is a caption WITH a
+ * title plate, which drops it to 852px and 114px side margins — a mild
+ * stranding on the poster least likely to be crowded.
  */
 export const GRID_LAYOUTS: readonly GridConfig[] = [
+  { columns: 1, rows: 1 }, // 1
+  { columns: 2, rows: 1 }, // 2
   { columns: 2, rows: 2 }, // 4
   { columns: 3, rows: 2 }, // 6
   { columns: 4, rows: 2 }, // 8
@@ -89,6 +106,36 @@ export const GRID_LAYOUTS: readonly GridConfig[] = [
 
 export function gridCapacity(grid: GridConfig): number {
   return grid.columns * grid.rows
+}
+
+/**
+ * Whether this shape can run its covers edge to edge without wrecking them.
+ *
+ * Cover bleed drops the margins and the gap, so each slot becomes exactly
+ * `1080/columns` by `1920/rows` and the cover crops to fill it. How much of the
+ * cover survives is entirely decided by how far that slot's aspect sits from
+ * the 2:3 a cover actually is — and the answer is not close for most shapes:
+ *
+ *     2x2, 3x3, 4x4 →  16% cropped   (a trim off the top and bottom)
+ *     5x4           →  32%
+ *     4x3           →  37%
+ *     3x2           →  44%
+ *     5x3           →  49%
+ *     2x1, 4x2      →  58%
+ *     5x2           →  66%           (two thirds of every cover gone)
+ *
+ * The pattern is exact rather than coincidental: the frame is 9:16, so a grid
+ * whose columns-to-rows ratio equals the frame's own gives slots that are
+ * themselves 9:16, and every such shape lands on the same 16%. Those are the
+ * square grids, and 1x1 with them.
+ *
+ * So bleed is not a flag that can ride on any layout. Offered on a 5x2 it would
+ * quietly destroy the artwork the app exists to show, which is worse than not
+ * offering it — the reader would have no way to know that the shape, not the
+ * mode, was the problem.
+ */
+export function supportsCoverBleed(grid: GridConfig): boolean {
+  return grid.columns === grid.rows
 }
 
 /** The most books any offered poster holds. */
@@ -167,6 +214,33 @@ export interface Board {
    * saved before this existed keep the look they were made with.
    */
   showRatings?: boolean
+  /**
+   * The one book this poster is making a case for, marked on its cover.
+   *
+   * On the board, not the book. `Book` is shared across every poster that holds
+   * it, and the same book can be the month's favourite in August and simply
+   * present in September — a flag on the book would make it a favourite
+   * everywhere at once.
+   *
+   * Cleared by `domain/board.ts` whenever the book it names leaves the poster.
+   * A dangling id renders nothing, which looks like the mark silently breaking.
+   */
+  favouriteBookId?: string
+  /**
+   * Run the covers edge to edge, with no margin, no gap, and no title band.
+   *
+   * A completely different poster: it says "this is about the books" without
+   * any words at all, which is the counterweight to the typographic default.
+   *
+   * Undefined reads as off, matching `showRatings`, so every board saved before
+   * this existed keeps the look it was made with.
+   *
+   * Only offered on shapes where it does not destroy the covers — see
+   * `supportsCoverBleed`. A board carrying the flag onto an unsupported shape
+   * renders normally rather than badly; the flag survives so that returning to
+   * a square grid restores the mode.
+   */
+  coverBleed?: boolean
   background: Background
   treatment?: BackgroundTreatment
   slots: Slot[]

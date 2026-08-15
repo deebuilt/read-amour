@@ -50,6 +50,19 @@
   text-align: left;
   cursor: pointer;
   font: inherit;
+  /*
+   * A grid item defaults to `min-width: auto`, which means it refuses to shrink
+   * below the intrinsic width of its contents. The contents here include a
+   * cover image, and catalogue covers arrive at whatever pixel size the
+   * publisher supplied — Apple artwork in particular is often far wider than
+   * Open Library's. So one oversized source image widened its own track past
+   * the `1fr` it was allotted and pushed the grid out of the drawer, which is
+   * why results did not all come out the same size.
+   *
+   * `object-fit: cover` on the image does not prevent this: it governs how the
+   * image paints inside its box, not how big the box is allowed to get.
+   */
+  min-width: 0;
 }
 
 .result:disabled {
@@ -57,17 +70,32 @@
   cursor: default;
 }
 
+/*
+ * The tile is sized by the grid track and the 2:3 ratio, never by the picture
+ * inside it. `width: 100%` is explicit rather than relying on a block box
+ * stretching, so the box is pinned to the track even while the image is still
+ * loading and has no intrinsic size to stretch against.
+ */
 .thumbWrap {
   position: relative;
   display: block;
+  width: 100%;
   aspect-ratio: 2 / 3;
   overflow: hidden;
   background: var(--ra-line);
   border-radius: 2px;
 }
 
+/*
+ * `max-width` alongside the 100%: a catalogue cover can arrive at any pixel
+ * size, and without the cap its intrinsic width participates in track sizing
+ * even though `object-fit` will crop it anyway. `display: block` removes the
+ * inline baseline gap under the image.
+ */
 .thumb {
+  display: block;
   width: 100%;
+  max-width: 100%;
   height: 100%;
   object-fit: cover;
 }

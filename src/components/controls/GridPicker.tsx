@@ -41,7 +41,8 @@ export function GridPicker({ value, onChange, filled }: GridPickerProps) {
             onClick={() => onChange(layout)}
             aria-pressed={isActive}
             aria-label={
-              `${capacity} books, ${layout.columns} across by ${layout.rows} down` +
+              `${capacity} book${capacity === 1 ? '' : 's'}, ` +
+              `${layout.columns} across by ${layout.rows} down` +
               (drops > 0 ? `. Drops ${drops} from the poster` : '')
             }
             title={drops > 0 ? `${drops} book${drops === 1 ? '' : 's'} would come off` : undefined}

@@ -17,12 +17,20 @@ import { ExportSheet } from './components/controls/ExportSheet'
 import { Wordmark } from './components/chrome/Wordmark'
 import { ThemeToggle } from './components/chrome/ThemeToggle'
 import { AboutPanel } from './components/chrome/AboutPanel'
+import { UpdateBanner } from './components/chrome/UpdateBanner'
 import { useBoard } from './hooks/useBoard'
 import { useCoverUrls } from './hooks/useCoverUrls'
 import { useBackgroundUrl } from './hooks/useBackgroundUrl'
 import { usePosterSize } from './hooks/usePosterSize'
 import { useTheme } from './hooks/useTheme'
-import { clearSlots, createBoard, fillSlots, moveSlot, setSlotBook } from './domain/board'
+import {
+  clearSlots,
+  createBoard,
+  fillSlots,
+  moveSlot,
+  setFavouriteBook,
+  setSlotBook,
+} from './domain/board'
 import { canSharePoster, posterFileName, savePoster, sharePoster } from './export/exportPoster'
 import { monthName } from './import/goodreads'
 import { getBoardByMonth, saveBoard } from './storage/db'
@@ -210,6 +218,19 @@ export default function App() {
   }, [])
 
   /**
+   * Mark the poster's favourite from the book list. The panel stays open — the
+   * mark lands on the poster behind the drawer, and the star in the row is the
+   * confirmation that it worked.
+   */
+  const handleToggleFavourite = useCallback(
+    (bookId: string) => {
+      if (!board) return
+      updateBoard(setFavouriteBook(board, bookId))
+    },
+    [board, updateBoard],
+  )
+
+  /**
    * Move the open slot's book elsewhere, swapping if the target is filled.
    * The editor follows the book to its new slot rather than staying put, so
    * the panel keeps describing what the user just acted on.
@@ -311,6 +332,11 @@ export default function App() {
             )}
           </main>
 
+          {/* Above the bar and below the poster: the one place a notice can go
+              without covering the artwork. Renders nothing until a build is
+              actually waiting. */}
+          <UpdateBanner />
+
           {/*
             Two icons, Save, two icons. Icon-only because five labelled buttons
             wrap at 375px.
@@ -396,7 +422,9 @@ export default function App() {
             }
             styles={{ body: { paddingTop: 12 } }}
           >
-            {panel === 'design' && board && <DesignPanel board={board} onChange={updateBoard} />}
+            {panel === 'design' && board && (
+              <DesignPanel board={board} coverUrls={coverUrls} onChange={updateBoard} />
+            )}
             {panel === 'import' && (
               <ImportPanel
                 onUseMonth={(month, monthBooks) => void handleUseMonth(month, monthBooks)}
@@ -411,6 +439,7 @@ export default function App() {
                 books={books}
                 coverUrls={coverUrls}
                 onSlotClick={handleEditSlot}
+                onToggleFavourite={handleToggleFavourite}
                 onClearAll={handleReset}
               />
             )}

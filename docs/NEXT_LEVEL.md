@@ -106,19 +106,32 @@ counterweight to the typographic default.
 
 **What will bite.**
 
-- **Covers are 2:3 and the frame is 9:16. They do not tile it.** A 4×4 grid of
-  2:3 slots at full width is 1080 wide and 2430 tall — 500px taller than the
-  poster. So full-bleed means one of two things, and the choice is a real design
-  decision, not an implementation detail:
-  - **Crop the covers.** Slots become whatever aspect the grid demands, and the
-    covers `object-fit: cover` into them. This genuinely fills the frame. It
-    also breaks the app's oldest promise — "slots match 2:3 so covers never
-    crop" — which is written into `tokens.ts`. For *this mode only* that is
-    defensible: cropping is the point of a bleed layout. Say so in the comment,
-    or the next reader will think it is a bug.
-  - **Keep 2:3 and pick a grid that happens to fit.** 4 columns × 6 rows of 270
-    × 405 is exactly 1080 × 2430. Still doesn't fit. There is no clean answer;
-    crop is the honest one.
+- **Covers are 2:3 and the frame is 9:16. They do not tile it.** Crop is the
+  honest answer — cropping is the point of a bleed layout — and it breaks the
+  app's oldest promise, "slots match 2:3 so covers never crop", which is written
+  into `tokens.ts`. For this mode only that is correct; say so in the comment or
+  the next reader will read it as a bug.
+
+  **Resolved 2026-08-15, and the arithmetic decides more than the crop.** How
+  much of a cover survives depends entirely on how far the slot's aspect sits
+  from 2:3, and across the catalogue that ranges from a trim to a mutilation:
+
+  | shape | cover lost |
+  |---|---|
+  | 2x2, 3x3, 4x4 (and 1x1) | **16%** |
+  | 5x4 | 32% |
+  | 4x3 | 37% |
+  | 3x2 | 44% |
+  | 5x3 | 49% |
+  | 2x1, 4x2 | 58% |
+  | 5x2 | **66%** |
+
+  The 16% row is not a coincidence: the frame is 9:16, so a grid whose
+  columns-to-rows ratio equals the frame's own produces slots that are
+  themselves 9:16 — the square shapes. So **bleed cannot be a free flag on any
+  layout**; on a 5x2 it destroys the artwork with no warning, and the reader
+  would have no way to tell that the shape rather than the mode was at fault.
+  `supportsCoverBleed()` gates it to square grids.
 - **The title has nowhere to go.** Either it is off in this mode, or it
   overlays the covers with a scrim. Overlaid is the better poster — pick that,
   and reuse the gradient-scrim approach `PosterSlot` already uses for stars.
@@ -179,21 +192,24 @@ geometry rule holds and `layoutGrid` needs no change to place them.
 
 **What will bite.**
 
-- **A 1x1 slot is width-bound at 936px wide and 1404px tall**, which is far more
-  vertical space than the frame has between the title and the caption. It will
-  come out height-bound instead, around 620px wide — a big cover floating in a
-  lot of side margin. That is the "strands margin" failure the nine shapes were
-  chosen to avoid, and at one book it may read as deliberate rather than broken.
-  Check it against a real cover before deciding; this is a taste call, not an
-  arithmetic one.
-- **`{ columns: 2, rows: 1 }` is the safer of the two** — width-bound, fills the
-  frame, and needs no judgement.
+- ~~**A 1x1 slot will come out height-bound, around 620px wide.**~~ **Wrong —
+  checked 2026-08-15.** It lands at the full **936px, width-bound**, at the
+  designed 72px margin like every other offered shape. The prediction only
+  considered the comfortable height; `layoutGrid` also has a *generous* path
+  that lets a tall grid claim the bottom clearance down to `gridBottomMin`, and
+  at one row that is more than enough. The single case that does go
+  height-bound is a caption **with** a title plate, which drops it to 852px and
+  114px side margins — a mild stranding on the poster least likely to be
+  crowded. No taste call needed.
+- **`{ columns: 2, rows: 1 }`** is width-bound and fills the frame too.
 - **A single cover carries the whole poster**, so cover quality matters much more
   than it does at 4x4. Worth pairing with 1.3's top-book mark, or with the
   book's title set large beneath it.
-- **`nearestOfferedGrid` sorts by capacity then aspect**, so adding shapes below
-  the current floor changes what an old oversized board migrates to. Re-check
-  `migrateBoard` after adding them.
+- ~~**Adding shapes below the floor changes what an old oversized board
+  migrates to.**~~ **Wrong — checked 2026-08-15.** `nearestOfferedGrid` first
+  *filters* to layouts whose capacity is >= what the old board held, and only
+  then sorts. A shape smaller than the floor can never enter that set for a
+  board that was oversized. `migrateBoard` is unaffected.
 - **`MAX_GRID_CAPACITY` is unaffected** — it takes the max, and these are minima.
 
 **Recommendation.** Do `2x1` first and look at `1x1` on a real cover before
@@ -245,6 +261,48 @@ and the only one that can destabilise what already works.
 ---
 
 # Tier 2 — Beyond the single PNG
+
+## 2.05 Tell the reader when a new version is ready
+
+**What.** A small prompt when the service worker has a new build waiting, with
+one tap to take it.
+
+**Why.** The app is a PWA with `registerType: 'autoUpdate'`, so new versions are
+already fetched in the background — but they activate silently on some later
+load. That is why pulling to refresh works *sometimes*: it depends on whether
+the worker happened to finish, and there is no way to tell from the outside.
+Installed to a home screen there is no address bar either, so the gesture is the
+only lever available, and it is a guess.
+
+This turns "pull down a few times and hope" into "a new version is ready, tap
+to load it."
+
+**Where it goes.** `vite-plugin-pwa` exposes `useRegisterSW` (from
+`virtual:pwa-register/react`), which gives a `needRefresh` signal and an
+`updateServiceWorker(true)` call that activates the waiting worker and reloads.
+The plugin is already configured in `vite.config.ts`; this is the client half
+that was never wired up.
+
+A small banner above the action bar is enough — this is not a modal-worthy
+event, and it must not cover the poster.
+
+**What will bite.**
+
+- **`registerType: 'autoUpdate'` and a manual prompt are slightly at odds.** With
+  autoUpdate the plugin registers a worker that skips waiting on its own. To
+  offer a real choice, this wants `registerType: 'prompt'` instead — otherwise
+  the banner is announcing something that already happened.
+- **A virtual module needs its types.** Add `vite-plugin-pwa/client` to the
+  `types` array in `tsconfig`, or the import will not typecheck.
+- **It cannot be tested on the dev server.** Service workers only behave
+  realistically against a built, served app — `npm run build` then `npm run
+  preview`, or the deployed Pages site.
+- **Two tabs open on the same app** both get the prompt. Harmless, but the
+  reload in one does not dismiss the other.
+
+**Worth doing before the tier work**, since every tier item ships through this
+same update path and "did my change actually land?" is a question that will come
+up on every single one.
 
 ## 2.1 Sticker-safe layout
 
@@ -417,19 +475,25 @@ that future session:
 
 # Suggested order
 
-1. **1.1 Cover-derived palettes** — biggest payoff per hour, no new user
-   decisions, makes every existing poster look better.
-2. **1.2 Cover-only mode** — one flag, completely different poster. Decide the
-   crop question first.
-3. **1.3 Top-book mark** — small, and it makes the poster read as authored.
-4. **2.1 Sticker-safe layout** — nearly free, and the honest answer to the
+~~0. **2.05 The update prompt**~~ — **shipped 2026-08-15.**
+~~1. **1.1 Cover-derived palettes**~~ — **shipped 2026-08-15.**
+~~2. **1.2 Cover-only mode**~~ — **shipped 2026-08-15**, gated to square grids.
+~~3. **1.3 Top-book mark**~~ — **shipped 2026-08-15.**
+~~—. **1.35 Small posters**~~ — **shipped 2026-08-15**, both 1x1 and 2x1.
+
+Remaining, in order:
+
+1. **2.1 Sticker-safe layout** — nearly free, and the honest answer to the
    interactivity question.
-5. **1.4 Non-uniform layouts** — the real design work. Do it once the cheap wins
-   are banked, because it touches `layoutGrid` for everyone.
-6. **2.4 Multi-page export** — low risk, real benefit for long months.
-7. **2.2 Other frames** — worthwhile, but re-derive the grid catalogue per
-   frame rather than reusing 9:16's.
-8. **2.3 Motion** — heaviest, most optional, and needs its own decision about
+2. **1.4 Non-uniform layouts** — the real design work, and now the only Tier 1
+   item left. It touches `layoutGrid` for everyone, so it wants a session of its
+   own. Note that `bleedLayout()` is already a second generator sitting beside
+   the uniform one — the shape this item proposes is half-started.
+3. **2.4 Multi-page export** — low risk, real benefit for long months.
+4. **2.2 Other frames** — worthwhile, but re-derive the grid catalogue per
+   frame rather than reusing 9:16's. Note that `supportsCoverBleed` is derived
+   from the 9:16 frame too, and would need re-deriving with it.
+5. **2.3 Motion** — heaviest, most optional, and needs its own decision about
    the second rendering path.
 
 Tier 3 stays parked. Revisit when someone outside the four people asks for it.
@@ -464,6 +528,156 @@ found along the way, what was left.)*
   sized — extraction will not be handed a 24-megapixel bitmap.
 
   Both are written up in `CLAUDE.md` under their own headings.
+
+- **2026-08-15** — **Tier 1 built, plus 2.05.** Four items shipped in one
+  session, in the order the doc suggested. Two of the doc's own predictions
+  turned out to be wrong; both are corrected in place above and recorded here.
+
+  **2.05 The update prompt.** `UpdateBanner` in `components/chrome/`, using
+  `useRegisterSW`. `registerType` flipped from `autoUpdate` to `prompt` in
+  `vite.config.ts` — the pair the doc called out, and it is a real pair: under
+  autoUpdate the banner would announce something that had already happened.
+  `vite-plugin-pwa/client` added to `tsconfig.app.json`. The banner sits between
+  the stage and the action bar in the shell's flex flow, so it never covers the
+  poster. **Cannot be verified on the dev server** — service workers need a
+  built, served app.
+
+  **1.1 Cover-derived palettes.** New `design/palette.ts` (pure, no React) and
+  `hooks/useCoverPalette.ts`. Six grounds — a pale and a deep treatment of each
+  of the three most populous colours across all the board's covers, counted in a
+  4096-bucket histogram. The doc's warning about raw dominant colours was right:
+  extraction keeps the *hue* and overrides saturation and lightness, so the
+  ground recalls the covers rather than matching them. Near-black, near-white
+  and near-grey pixels are skipped, or every poster comes out the same grey.
+  `inkForBackground()` now answers properly for `kind: 'color'` instead of
+  defaulting to white — a colour the app computed is knowable.
+
+  Worth noting for 1.4: extraction is **async** (it decodes blobs), so it could
+  not be a `useMemo`. The doc's "recompute on book change" understated it.
+
+  **1.35 Small posters.** `1x1` and `2x1` added to `GRID_LAYOUTS`.
+
+  Two doc claims corrected. **`nearestOfferedGrid` was never at risk** — it
+  filters to layouts with capacity >= the old board's, so shapes below the floor
+  can never be selected for an oversized legacy board. And **1x1 is not
+  height-bound**: the doc predicted ~620px wide with stranded margin, but
+  `layoutGrid`'s generous path lets a tall grid claim the bottom clearance, so
+  it lands at the full 936px, width-bound, at the designed 72px margin like
+  every other shape. The one exception is a caption *with* a title plate, which
+  drops it to 852px. So 1x1 is a good shape, not a taste gamble.
+
+  **1.3 Top-book mark.** `favouriteBookId` on `Board` — on the board, not the
+  book, for the reason the doc gives. The mark is a **gold rule** across the
+  foot of the cover, sized from `slotWidth` via two ratios beside
+  `STAR_WIDTH_RATIO`. Not a fold: the poster is flat ink on flat art everywhere
+  else and a fold implies a depth nothing else has. Gold rather than a new
+  accent, since the poster already reads gold as "this book scored well".
+
+  Dangling ids are cleared by `withValidFavourite()` in `domain/board.ts`,
+  applied in `resizeGrid`, `setSlotBook` and `fillSlots`, with `clearSlots`
+  dropping it outright. Domain, not component, as the doc asked.
+
+  The toggle is a star on each `BookList` row. That meant restructuring the row:
+  it was a single `<button>`, and the star cannot nest inside one.
+
+  **1.2 Cover-only mode.** `coverBleed` on `Board`, `bleedLayout()` in
+  `layout.ts`, scrimmed title and caption over the covers.
+
+  **The doc left the crop question open and the arithmetic answers it.** With
+  zero margin and gap, how much of each cover survives depends entirely on how
+  far the slot's aspect sits from 2:3 — and it is not close for most shapes:
+  5x2 loses **66%** of every cover, 2x1 and 4x2 lose 58%, 3x2 loses 44%. But
+  every shape whose columns-to-rows ratio equals the frame's own 9:16 lands on
+  the same **16%** — a trim off the top and bottom that looks intentional. Those
+  are exactly the square grids.
+
+  So bleed is **not a free flag on any layout**. `supportsCoverBleed()` gates it
+  to square shapes, and the switch explains what the shape must be rather than
+  producing a ruined poster silently. The flag persists across an unsupported
+  shape so returning to a square grid restores the mode. Ratings force off in
+  bleed (`board.showRatings` untouched), and empty slots lose their inset rule —
+  with covers meeting edge to edge it would draw a grid over a single surface.
+
+  **Left for its own session: 1.4 non-uniform layouts**, unchanged from the
+  doc's recommendation. It rewrites `layoutGrid`'s return type for every board.
+
+- **2026-08-16** — **Two fixes from Ruthnie's first look at the Tier 1 work.**
+  Both were cases of correct reasoning reaching a wrong result.
+
+  **The palette showed the same swatch five times.** Selecting the top three
+  buckets by population gave three shades of one red, because that is what a
+  book-cover histogram looks like. Real output from four covers: `#eddee0`,
+  `#451c20`, `#eddedf`, `#451c1f`, `#eddee0`, `#451c20` — two pairs differing by
+  one hex digit, which the exact-match dedupe could not see. Source colours are
+  now required to be separated on the hue wheel *at selection time*, with
+  near-greys held to a saturation test instead since hue is noise down there.
+  Same simulated input now yields six genuinely different grounds.
+
+  **The favourite mark did not read as a favourite.** It was a gold rule across
+  the foot of the cover, argued for on the grounds that a badge reads as UI
+  chrome and a rule reads as artwork. Both true, and it was still wrong: a
+  horizontal line does not *mean* anything, and on a busy cover it was invisible
+  besides. Ruthnie: "a gold bar that doesn't really read as favorite."
+
+  Now a gold star in the top corner on a soft radial glow — the star carries the
+  meaning with no legend, and the glow solves the same contrast problem the
+  rating band solves with a scrim, without an edge that would read as a badge.
+  In bleed mode it moves to the bottom-left, since the title scrim is 560px deep
+  and swallows the top row on a 2x2.
+
+  **The lesson worth keeping:** the rule was chosen by reasoning about what a
+  mark should *look* like and never checking whether it would be *understood*.
+  A mark on the artwork has to answer "what does this tell me about this book?"
+  before it answers "does this look like part of the design?"
+
+- **2026-08-16 (second pass)** — Ruthnie put a real poster on screen, and both
+  1.1 and 1.3 needed another round. Both had shipped defensible reasoning that
+  did not survive contact with actual covers.
+
+  **The favourite star collided with the rating stars.** Her screenshot showed
+  *The Boy on the Bridge* with a gold star in the corner and four gold rating
+  stars along the foot — same glyph, same colour, two meanings. She had flagged
+  the risk before it was visible ("we already have star ratings... that might be
+  confusing if both of those settings were turned on") and suggested a crown.
+
+  Now a **white crown** on the radial glow, drawn as an inline SVG (`CrownMark`)
+  rather than a glyph — the Unicode crown is emoji-presentation on most
+  platforms and would render differently per device or not at all, which is
+  unacceptable inside an exported PNG. White rather than gold so it cannot
+  borrow the rating's colour. The `BookList` toggle follows, in accent rather
+  than gold, since those rows show gold stars too.
+
+  **The palette's grounds did not look like the books.** "Three different types
+  of kind of, like, off whites... I don't know where they're pulling the colors
+  from." Correct: `asGround()` clamped saturation to 28% and lightness to
+  0.9/0.19, so Fahrenheit 451's `#ce2a1e` became `#eddfde` and Koli's foliage
+  green became `#e7edde` — nearly every cover collapsing to the same neutrals.
+  The clamps are proportional now, so a bold cover gives a bold ground:
+  Fahrenheit yields `#ebc5c2` / `#631c17`, Koli's green `#d9e0cc` / `#424f2b`.
+  `MIN_USEFUL_SATURATION` went 0.12 → 0.25 so cover ink stops producing greys.
+  Contrast re-verified after the change: 10.1:1 worst on tints, 6.3:1 on shades.
+
+  **The lesson, and it is the same one twice:** both features were tuned for
+  the failure mode that could be reasoned about in the abstract — an ugly
+  ground, a mark that looked like UI chrome — and neither was checked against
+  the question a user actually asks. "Where did this colour come from?" and
+  "what does this mark mean?" are the tests. A contrast table cannot answer
+  either.
+
+  **Also caught:** `npx tsc --noEmit` passed on a reference to a constant that
+  did not exist (renamed declaration, un-renamed use). Only `oxlint` saw it, via
+  the orphaned declaration. It would have been a `ReferenceError` on any poster
+  with a favourite. Run both.
+
+  **And a pre-existing bug, unrelated to the tiers.** Search results came out
+  uneven and pushed past the drawer's edge when one cover's source image was
+  larger than the others. Not an image problem: `.result` is a grid item, grid
+  items default to `min-width: auto`, and so a wide cover widened its own track
+  past the `1fr` it was allotted. `object-fit: cover` does not help, because it
+  governs painting inside the box rather than how big the box may get. Fixed
+  with `min-width: 0` on the item plus explicit widths on the tile and image;
+  written up in `CLAUDE.md` as its own heading, since any future grid of images
+  will hit it.
 
 - **2026-08-15** — Caption legibility. The handle was set at 30px against the
   1080px export canvas *and* dimmed to 0.85 opacity, which on a phone previewing

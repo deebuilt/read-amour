@@ -26,7 +26,20 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      /*
+       * `prompt`, not `autoUpdate`.
+       *
+       * Under autoUpdate the worker skips waiting on its own and a new build
+       * activates on some later load with nothing said. That is why pulling to
+       * refresh worked only sometimes: it depended on whether the worker had
+       * happened to finish, and installed to a home screen there is no address
+       * bar either, so the gesture was the only lever and it was a guess.
+       *
+       * With `prompt` the new worker waits, `useRegisterSW` reports it, and
+       * `UpdateBanner` offers the reload. A banner under autoUpdate would be
+       * announcing something that had already happened.
+       */
+      registerType: 'prompt',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
         name: 'Read Amour',

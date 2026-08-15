@@ -87,7 +87,40 @@ function bottomReserve(text?: PosterText): number {
   )
 }
 
-export function layoutGrid(grid: GridConfig, text?: PosterText): GridLayout {
+/**
+ * Cover-bleed geometry: the frame, divided.
+ *
+ * Nothing is fitted here and nothing is centred, because there is no leftover
+ * space to distribute — the slots tile the canvas exactly. The 2:3 lock does
+ * not apply either: slots take whatever aspect the grid demands and the covers
+ * crop into them.
+ *
+ * That deliberately breaks the app's oldest promise, the one written into
+ * `tokens.slotAspectRatio` — "slots match 2:3 so covers never crop". Cropping
+ * is the entire point of a bleed layout, so for this mode only it is correct.
+ * `supportsCoverBleed` is what keeps it honest: it restricts the mode to the
+ * shapes where the crop is a 16% trim rather than a mutilation.
+ */
+function bleedLayout(grid: GridConfig): GridLayout {
+  const slotWidth = POSTER.width / grid.columns
+  const slotHeight = POSTER.height / grid.rows
+
+  return {
+    slotWidth,
+    slotHeight,
+    gridTop: 0,
+    gridWidth: POSTER.width,
+    gridHeight: POSTER.height,
+  }
+}
+
+export function layoutGrid(
+  grid: GridConfig,
+  text?: PosterText,
+  coverBleed = false,
+): GridLayout {
+  if (coverBleed) return bleedLayout(grid)
+
   const { columns, rows } = grid
   const gap = tokens.gridGap
 

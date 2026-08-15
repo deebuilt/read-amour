@@ -82,6 +82,17 @@
 }
 
 /*
+ * The sampled row is labelled and set apart from the builtins above it. Two
+ * unlabelled swatch grids stacked would read as one grid that had grown, which
+ * hides the fact that the second one came from the reader's own books.
+ */
+.paletteGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/*
  * Designs are grouped by the month they were shot for. The month is a real
  * fact about each image that the UI never surfaced — it lived only in an
  * aria-label — so the picker read as one long wall of photographs.

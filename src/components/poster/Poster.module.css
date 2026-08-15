@@ -31,6 +31,41 @@
   text-align: center;
 }
 
+/*
+ * Scrims for bleed mode, where the poster's type sits directly on the covers.
+ *
+ * Top and bottom, matching where the title and the handle sit. Tall enough to
+ * carry the whole title block inside the dense part of the gradient — a scrim
+ * that fades out under the descenders is worse than none, because the eye reads
+ * the fade line as a band across the artwork.
+ *
+ * Cover art is unpredictable, so this is not optional decoration: a white title
+ * on a pale cover is simply invisible. Same reasoning, and the same colours, as
+ * the rating band in `PosterSlot.module.css`.
+ *
+ * Fixed rgba, like every colour that ends up inside the export.
+ */
+.topScrim,
+.bottomScrim {
+  position: absolute;
+  right: 0;
+  left: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.topScrim {
+  top: 0;
+  height: 560px;
+  background: linear-gradient(to bottom, rgba(12, 10, 9, 0.62), rgba(12, 10, 9, 0));
+}
+
+.bottomScrim {
+  bottom: 0;
+  height: 320px;
+  background: linear-gradient(to top, rgba(12, 10, 9, 0.62), rgba(12, 10, 9, 0));
+}
+
 /* Inline-block so a plate wraps only the type, not the full frame width. */
 .titleBlock {
   display: inline-block;

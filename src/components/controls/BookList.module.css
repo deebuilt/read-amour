@@ -33,11 +33,23 @@
   list-style: none;
 }
 
+/*
+ * The row and its favourite star sit side by side. The row takes the space and
+ * the star is a fixed thumb-sized target at the end, so the two never compete
+ * for width and the star stays in the same place down the whole list.
+ */
+.rowWrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .row {
   display: flex;
   gap: 12px;
   align-items: center;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   /* Clears a thumb without a border: this is a list, not a stack of cards. */
   min-height: 44px;
   padding: 8px;
@@ -113,6 +125,45 @@
 
 .finished {
   white-space: nowrap;
+}
+
+/*
+ * The favourite toggle: a crown, matching the mark it puts on the poster.
+ *
+ * Deliberately NOT gold. Each row can also show a rating in gold stars, and a
+ * gold favourite mark beside them repeats in the chrome exactly the collision
+ * the poster mark was changed to avoid — same colour, adjacent, two meanings.
+ * The accent reads as "on" without borrowing the rating's colour.
+ *
+ * Unset it is faint rather than absent: a control that only appears on hover is
+ * unfindable on a phone, where there is no hover at all.
+ */
+.favourite,
+.favouriteOn {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  font-size: 17px;
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+
+.favourite {
+  color: var(--ra-line-strong);
+}
+
+.favouriteOn {
+  color: var(--ra-accent);
+}
+
+.favourite:hover {
+  color: var(--ra-ink-faint);
 }
 
 /* Set apart from the list so it cannot be mistaken for another row. */
