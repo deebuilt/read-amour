@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { Button, Divider, Input, Switch, Typography, Upload } from 'antd'
 import { BUILTIN_BACKGROUNDS, getBuiltinBackground } from '../../design/backgrounds'
 import { getPhotoBackground, photoGroupsForMonth } from '../../design/photoBackgrounds'
@@ -32,16 +32,27 @@ interface DesignPanelProps {
 }
 
 export function DesignPanel({ board, onChange }: DesignPanelProps) {
+  /**
+   * A large photo is downscaled before it is stored, which takes long enough on
+   * a phone to look like nothing happened. The button says so.
+   */
+  const [isUploading, setIsUploading] = useState(false)
+
   const handleBackgroundUpload = useCallback(
     async (file: File) => {
-      const blobKey = await storeUploadedImage(file, 'bg')
-      onChange({
-        ...board,
-        background: { kind: 'upload', blobKey },
-        // Photography is unknowable without sampling; white reads acceptably
-        // over most of it and the ink toggle is one tap away.
-        text: { ...board.text, inkColor: color.posterInk },
-      })
+      setIsUploading(true)
+      try {
+        const blobKey = await storeUploadedImage(file, 'bg')
+        onChange({
+          ...board,
+          background: { kind: 'upload', blobKey },
+          // Photography is unknowable without sampling; white reads acceptably
+          // over most of it and the ink toggle is one tap away.
+          text: { ...board.text, inkColor: color.posterInk },
+        })
+      } finally {
+        setIsUploading(false)
+      }
       return false
     },
     [board, onChange],
@@ -139,13 +150,25 @@ export function DesignPanel({ board, onChange }: DesignPanelProps) {
           })}
         </div>
 
+        {/*
+          The button says whether a photo is already in use, and shows while one
+          is being processed. It used to read "Upload a photo" in every state,
+          so replacing a background gave no sign it had worked — the swap is
+          silent, and a large image takes a moment to downscale before it lands.
+        */}
         <div className={styles.row}>
           <Upload
             accept="image/*"
             showUploadList={false}
             beforeUpload={(file) => handleBackgroundUpload(file)}
           >
-            <Button size="small">Upload a photo</Button>
+            <Button size="small" loading={isUploading}>
+              {isUploading
+                ? 'Adding…'
+                : board.background.kind === 'upload'
+                  ? 'Replace your photo'
+                  : 'Upload a photo'}
+            </Button>
           </Upload>
         </div>
       </PanelSection>

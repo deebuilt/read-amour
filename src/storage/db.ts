@@ -225,6 +225,75 @@ export async function deleteImage(key: string): Promise<void> {
 }
 
 /**
+ * Shrink oversized uploads already sitting in storage.
+ *
+ * `storeUploadedImage` downscales on the way in, but that only helps uploads
+ * made after it existed. A background saved off Unsplash before then is still
+ * held at full camera size — 4000px or more for a 1080px poster — and the
+ * browser rescales every one of those pixels on each repaint, which is felt as
+ * a stuttering drawer and a lagging wash slider.
+ *
+ * Refreshing does not fix it: the shrink runs at upload time and deploying new
+ * code does not touch stored bytes. So the existing blobs have to be rewritten
+ * once, which is what this does.
+ *
+ * Runs at startup beside `repairCoverLinks` and is a no-op once everything has
+ * been through it — the size test is on the stored blob, so a shrunk image is
+ * never re-encoded and quality does not compound over runs.
+ *
+ * Only user uploads are touched. Catalogue covers arrive from Open Library and
+ * Apple already sized for display, and they are content-addressed and shared
+ * across posters — rewriting those bytes would re-encode an image several
+ * boards point at to no benefit.
+ */
+export async function shrinkStoredUploads(
+  shrink: (blob: Blob) => Promise<Blob>,
+): Promise<number> {
+  const db = await getDB()
+  const images = await db.getAll('images')
+
+  const candidates = images.filter(
+    (image) => isUpload(image.key) && image.blob.size > UPLOAD_SHRINK_FLOOR_BYTES,
+  )
+  if (candidates.length === 0) return 0
+
+  let rewritten = 0
+
+  // Sequential rather than parallel: each shrink decodes a full-size bitmap,
+  // and doing several at once on a phone is how a startup pass turns into a
+  // memory spike on the one device this app is built for.
+  for (const image of candidates) {
+    try {
+      const blob = await shrink(image.blob)
+      // `shrinkForStorage` returns the original when it cannot improve on it.
+      if (blob.size >= image.blob.size) continue
+
+      await db.put('images', { ...image, blob })
+      rewritten += 1
+    } catch {
+      // A blob that will not decode keeps its original bytes. The cost is
+      // performance on one image, which is strictly better than losing it.
+    }
+  }
+
+  return rewritten
+}
+
+/**
+ * Uploads are the only images this rewrites — see `shrinkStoredUploads`.
+ * Keyed off the prefixes `storeUploadedImage` writes.
+ */
+function isUpload(key: string): boolean {
+  return key.startsWith('bg-') || key.startsWith('manual-cover-')
+}
+
+/**
+ * Below this, an upload is not worth decoding to check. Matches the floor in
+ * `shrinkForStorage`, so the two passes agree on what counts as oversized.
+ */
+const UPLOAD_SHRINK_FLOOR_BYTES = 400 * 1024
+
+/**
  * Images that are stored before anything references them.
  *
  * `ensureCoverStored` writes a cover blob and only then hands its key back to

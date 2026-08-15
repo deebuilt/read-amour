@@ -3,8 +3,8 @@ import { App as AntApp, Button, ConfigProvider, Drawer, Spin } from 'antd'
 import {
   AppstoreOutlined,
   BgColorsOutlined,
-  DownloadOutlined,
   ReadOutlined,
+  SaveOutlined,
   UploadOutlined,
 } from '@ant-design/icons'
 import { Poster } from './components/poster/Poster'
@@ -13,6 +13,7 @@ import { ImportPanel } from './components/controls/ImportPanel'
 import { SlotEditor } from './components/controls/SlotEditor'
 import { BookList } from './components/controls/BookList'
 import { PostersPanel } from './components/controls/PostersPanel'
+import { ExportSheet } from './components/controls/ExportSheet'
 import { Wordmark } from './components/chrome/Wordmark'
 import { ThemeToggle } from './components/chrome/ThemeToggle'
 import { AboutPanel } from './components/chrome/AboutPanel'
@@ -22,7 +23,7 @@ import { useBackgroundUrl } from './hooks/useBackgroundUrl'
 import { usePosterSize } from './hooks/usePosterSize'
 import { useTheme } from './hooks/useTheme'
 import { clearSlots, createBoard, fillSlots, moveSlot, setSlotBook } from './domain/board'
-import { downloadPoster, posterFileName } from './export/exportPoster'
+import { canSharePoster, posterFileName, savePoster, sharePoster } from './export/exportPoster'
 import { monthName } from './import/goodreads'
 import { getBoardByMonth, saveBoard } from './storage/db'
 import { buildAntTheme } from './design/antTheme'
@@ -79,6 +80,16 @@ export default function App() {
   const [panel, setPanel] = useState<PanelKind | undefined>()
   const [activeSlot, setActiveSlot] = useState<number | undefined>()
   const [isExporting, setIsExporting] = useState(false)
+  const [isExportOpen, setIsExportOpen] = useState(false)
+  /** Which export is in flight, so the sheet can say which row is working. */
+  const [exporting, setExporting] = useState<'save' | 'share' | undefined>()
+
+  /**
+   * Whether this device can share files at all. Read once — it is a capability
+   * of the browser, not something that changes while the app is open — and it
+   * decides whether the sheet offers a share row or only a save.
+   */
+  const canShare = useMemo(() => canSharePoster(), [])
 
   const openSlot = useCallback((index: number) => {
     setActiveSlot(index)
@@ -222,17 +233,35 @@ export default function App() {
     return labels
   }, [board, books])
 
-  const handleExport = useCallback(async () => {
-    if (!posterRef.current || !board) return
-    setIsExporting(true)
-    // Let the affordance-free render commit before capturing.
-    await new Promise((resolve) => window.setTimeout(resolve, 50))
-    try {
-      await downloadPoster(posterRef.current, { fileName: posterFileName(board.month) })
-    } finally {
-      setIsExporting(false)
-    }
-  }, [board])
+  /**
+   * Render the poster and hand it to whichever export was chosen.
+   *
+   * Both paths capture identically — the difference is only what happens to the
+   * blob afterwards. `isExporting` strips the slot affordances from the render,
+   * and the frame has to commit before the capture reads the DOM.
+   */
+  const runExport = useCallback(
+    async (intent: 'save' | 'share') => {
+      if (!posterRef.current || !board) return
+      setExporting(intent)
+      setIsExporting(true)
+      // Let the affordance-free render commit before capturing.
+      await new Promise((resolve) => window.setTimeout(resolve, 50))
+      try {
+        const options = { fileName: posterFileName(board.month) }
+        if (intent === 'save') {
+          await savePoster(posterRef.current, options)
+        } else {
+          await sharePoster(posterRef.current, options)
+        }
+        setIsExportOpen(false)
+      } finally {
+        setIsExporting(false)
+        setExporting(undefined)
+      }
+    },
+    [board],
+  )
 
   /** Months that already have a poster, so the import list can mark them. */
   const usedMonths = useMemo(
@@ -307,16 +336,22 @@ export default function App() {
               ))}
             </div>
 
-            {/* "Download", not "Save" — the poster is already saved, and has
-                been since the moment it was edited. This button is the way to
-                get a PNG out, which is a different promise. */}
+            {/* One button, two outcomes. It opens the choice rather than
+                picking one: keeping the image and posting it are different
+                intentions, and the version that guessed always guessed
+                "share" — which meant the copy was never written.
+
+                The save mark rather than a download tray: the button no longer
+                promises a download specifically, and the same mark repeats on
+                the sheet's save row so the common path is one glyph from the
+                bar to the choice. */}
             <Button
               type="primary"
               shape="circle"
               size="large"
-              icon={<DownloadOutlined />}
-              aria-label="Download image"
-              onClick={() => void handleExport()}
+              icon={<SaveOutlined />}
+              aria-label="Save or share this poster"
+              onClick={() => setIsExportOpen(true)}
               loading={isExporting}
               className={styles.save}
             />
@@ -403,6 +438,15 @@ export default function App() {
               />
             )}
           </Drawer>
+
+          <ExportSheet
+            open={isExportOpen}
+            canShare={canShare}
+            busy={exporting}
+            onSave={() => void runExport('save')}
+            onShare={() => void runExport('share')}
+            onCancel={() => setIsExportOpen(false)}
+          />
         </div>
       </AntApp>
     </ConfigProvider>

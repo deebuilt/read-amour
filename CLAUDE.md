@@ -365,6 +365,103 @@ Four changes, each with its own section above:
 4. **Designs grouped by month** in the picker. The months were always in the
    filenames and never once shown — the label lived only in an `aria-label`.
 
+## Uploads are downscaled on the way in, and it is not optional
+
+`scripts/compress-backgrounds.mjs` only touches the ten curated files in
+`src/assets/backgrounds/`, at build time. Uploads never went near it —
+`storeUploadedImage()` wrote the `File` into IndexedDB byte for byte.
+
+So a background saved straight off Unsplash sat in the board at full camera
+size: 4000px or more, for a poster that is 1080 wide. The browser then rescaled
+roughly 24 megapixels on **every repaint**, which is felt precisely where
+repaints are continuous — the design drawer stutters as it slides up, and the
+wash slider trails the thumb. It reads as a slow app and is one oversized blob.
+
+`shrinkForStorage()` in `api/resizeUpload.ts` is the build script's job done in
+the browser, at the same numbers: 1400px longest edge, JPEG quality 82. It sits
+inside `storeUploadedImage()`, which is the single choke point every upload path
+goes through — backgrounds, manual covers, and cover replacement. Put it there,
+not at the call sites, or the next upload path added will miss it.
+
+It declines to act when acting would cost something: files under 400KB, images
+already inside 1400px, SVGs, and any re-encode that came out larger than the
+original (a transparent PNG flattened to JPEG can do exactly that). A small
+cover with crisp type is not improved by a round trip.
+
+**A deploy does not fix images already stored.** The shrink runs at upload time,
+and new code does not touch existing bytes — refreshing just re-reads the same
+fat blob. `shrinkStoredUploads()` in `storage/db.ts` rewrites them once, called
+unawaited from `useBoard`'s load *after* `setIsLoading(false)`. Both details are
+deliberate: it decodes full-size bitmaps, so blocking the first paint on it
+would trade a stuttering drawer for a blank startup. It works sequentially for
+the same reason — several full-size decodes at once is a memory spike on the one
+device this app is built for.
+
+It only ever touches `bg-*` and `manual-cover-*`. Catalogue covers arrive from
+Open Library and Apple already sized for display, and they are content-addressed
+and shared across posters — re-encoding bytes that several boards point at buys
+nothing.
+
+## Save and share are two different intentions
+
+`downloadPoster()` used to check whether the browser could share files and, if
+it could, hand the poster to the OS share sheet and return — the download line
+never ran. On Android that branch is always taken, so the button labelled
+*Download* had never once downloaded. The comment in the code stated the
+assumption plainly: "on a phone that is the better outcome anyway, since it
+hands the image straight to Instagram."
+
+That was the app deciding what the poster was for. Posting it is one thing you
+might do; keeping a copy is another, and the second one was silently
+unavailable.
+
+The share sheet is **Android's**, not ours. `navigator.share()` hands over a
+file and the OS draws the panel — there is no API to add a "Save" item to it. So
+the choice has to be made on our side of that handoff, which is what
+`ExportSheet` is: one button in the bar, two rows in a modal.
+
+`savePoster()` and `sharePoster()` are separate exports and capture identically;
+only the destination differs. The iOS fallback still exists inside `savePoster`,
+but as a **fallback** — `supportsDownload()` sniffs for iOS, because `<a
+download>` does nothing for blob URLs there and a feature test cannot see that.
+Android never reaches it. Never restore the old order, where sharing came first
+whenever it was possible.
+
+`canSharePoster()` decides whether the sheet offers a share row at all. A choice
+that does nothing is worse than one choice.
+
+## Shipped 2026-08-15 (second pass)
+
+Both from the first real use on a phone, and both were the app quietly deciding
+something on the user's behalf:
+
+1. **Save vs share**, above. The export button opened Android's share sheet and
+   never wrote a file.
+2. **Uploads downscaled**, above, plus a one-time pass over images already
+   stored. The upload button also now says whether a photo is already in use and
+   shows while one is processing — replacing a background gave no sign it had
+   worked, and a large photo takes a visible moment to shrink.
+
+The bar button and the sheet's save row carry the same `SaveOutlined` mark, so
+the save path reads as one action from the bar through to the choice. It is a
+floppy disk, which is a slightly odd fit for an app with nothing to save — the
+posters save themselves — but it was chosen deliberately over the download tray.
+
+## What to build next
+
+`docs/NEXT_LEVEL.md` holds the plan for where the poster goes from here, in
+three tiers: composition (cover-derived palettes, cover-only bleed, a top-book
+mark, non-uniform layouts), export (sticker-safe layout, other frames, motion,
+carousels), and a share link.
+
+Read it before starting design work. It records the reasoning, the file-level
+landing spots, and what will bite on each — including the finding that a share
+link needs **no backend**: covers travel as identifiers (an Open Library id or
+an ISBN, ~13 characters) and are re-fetched on arrival, which puts a 20-book
+poster under 1KB in a URL fragment. Encoding the actual cover blobs would be
+~410KB against an 8–32KB ceiling, which is where the "this needs a database"
+assumption came from.
+
 ## Known gaps
 
 - **Cover resolution cannot be cancelled.** Closing the import drawer mid-fetch

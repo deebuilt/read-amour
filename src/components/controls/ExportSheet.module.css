@@ -1,0 +1,68 @@
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-block: 4px;
+}
+
+/*
+ * Each option is a full row, not a button in a row of buttons. There are only
+ * two and they are not equivalent — one keeps the poster, the other sends it —
+ * so each gets its own line and a sentence explaining what it actually does.
+ */
+.option {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  width: 100%;
+  padding: 14px;
+  border: 1px solid var(--ra-line);
+  border-radius: 8px;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.option:hover:not(:disabled) {
+  background: var(--ra-paper-raised);
+  border-color: var(--ra-line-strong);
+}
+
+.option:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.icon {
+  flex: none;
+  font-size: 20px;
+  /* Optically aligns the glyph with the label's cap height. */
+  margin-top: 2px;
+  color: var(--ra-ink-soft);
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.label {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ra-ink);
+}
+
+/*
+ * The hint carries the real difference between the two choices, so it is a
+ * sentence rather than a fragment — "Downloads the image" is the answer to the
+ * question the sheet exists to ask.
+ */
+.hint {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ra-ink-faint);
+}

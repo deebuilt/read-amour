@@ -1,5 +1,6 @@
 import { appleCoverBlobKey, fetchAppleCoverBlob, findAppleCover } from './appleBooks'
 import { coverBlobKey, fetchCoverBlob, searchByIsbn } from './openLibrary'
+import { shrinkForStorage } from './resizeUpload'
 import { getBook, getImage, hasImage, saveBook, saveImage, tagImageOwner } from '../storage/db'
 import type { Book } from '../types/domain'
 
@@ -163,12 +164,24 @@ export function releaseAllObjectUrls(): void {
   objectUrlCache.clear()
 }
 
-/** Store a user-uploaded image (background or cover) and return its key. */
+/**
+ * Store a user-uploaded image (background or cover) and return its key.
+ *
+ * The file is downscaled first. It used to be stored byte for byte, which meant
+ * a background saved off Unsplash went into the board at full camera size —
+ * 4000px or more for a 1080px poster — and the browser rescaled every one of
+ * those pixels on each repaint. The design drawer stuttered as it opened and
+ * the wash slider trailed the thumb, and both were this.
+ *
+ * Every upload path goes through here — backgrounds, manual covers, and cover
+ * replacement — so the shrink belongs here rather than at the three call sites.
+ */
 export async function storeUploadedImage(file: File, prefix: string): Promise<string> {
   const key = `${prefix}-${crypto.randomUUID()}`
+  const blob = await shrinkForStorage(file)
   await saveImage({
     key,
-    blob: file,
+    blob,
     createdAt: new Date().toISOString(),
   })
   return key

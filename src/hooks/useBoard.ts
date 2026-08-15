@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { clearSlots, createBoard, migrateBoard } from '../domain/board'
+import { shrinkForStorage } from '../api/resizeUpload'
 import {
   deleteBoard,
   getBoard,
@@ -7,6 +8,7 @@ import {
   pruneOrphanedImages,
   repairCoverLinks,
   saveBoard,
+  shrinkStoredUploads,
 } from '../storage/db'
 import type { Board } from '../types/domain'
 
@@ -92,6 +94,20 @@ export function useBoard(): UseBoardResult {
         setBoards([fresh])
       }
       setIsLoading(false)
+
+      /*
+       * Shrink any oversized upload already in storage.
+       *
+       * Deliberately after the board is on screen and deliberately not awaited:
+       * this decodes and re-encodes full-size images, and doing it before the
+       * first paint would trade a stuttering drawer for a blank startup. The
+       * poster re-reads its background through `useBackgroundUrl` when the blob
+       * changes, so a background shrunk a moment later simply gets sharper to
+       * scroll — nothing on screen breaks.
+       *
+       * A no-op after the first run that finds anything.
+       */
+      void shrinkStoredUploads(shrinkForStorage)
     }
 
     void load()
