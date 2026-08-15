@@ -1,5 +1,5 @@
 import { coverBlobKey, fetchCoverBlob, searchByIsbn } from './openLibrary'
-import { getImage, hasImage, saveImage } from '../storage/db'
+import { getBook, getImage, hasImage, saveBook, saveImage, tagImageOwner } from '../storage/db'
 import type { Book } from '../types/domain'
 
 /**
@@ -41,11 +41,31 @@ export async function ensureCoverStored(coverId: number): Promise<string | undef
  */
 export async function resolveCoverForBook(book: Book): Promise<string | undefined> {
   if (book.coverBlobKey && (await hasImage(book.coverBlobKey))) {
+    await tagImageOwner(book.coverBlobKey, book)
     return book.coverBlobKey
   }
 
-  if (book.coverId !== undefined) {
-    return ensureCoverStored(book.coverId)
+  /*
+   * Fall back to the STORED copy of this book before going to the network.
+   *
+   * The CSV importer resolves covers for book objects parsed straight out of
+   * the file, and those carry no `coverBlobKey` and no `coverId` — the CSV has
+   * no such columns. Without this lookup, every re-import of an already
+   * resolved month ignores the blob sitting in IndexedDB and re-fetches it
+   * from Open Library, which is why previously filled posters looked
+   * permanently broken and "unrecoverable" when the images had never left.
+   */
+  const stored = await getBook(book.id)
+  if (stored?.coverBlobKey && (await hasImage(stored.coverBlobKey))) {
+    await tagImageOwner(stored.coverBlobKey, book)
+    return stored.coverBlobKey
+  }
+
+  const coverId = book.coverId ?? stored?.coverId
+  if (coverId !== undefined) {
+    const key = await ensureCoverStored(coverId)
+    if (key) await tagImageOwner(key, book)
+    return key
   }
 
   const isbn = book.isbn13 ?? book.isbn10
@@ -54,7 +74,16 @@ export async function resolveCoverForBook(book: Book): Promise<string | undefine
   const match = await searchByIsbn(isbn)
   if (match?.coverId === undefined) return undefined
 
-  return ensureCoverStored(match.coverId)
+  const key = await ensureCoverStored(match.coverId)
+  // Remember which cover this ISBN resolved to, so the search is not repeated
+  // on every future import of the same book — and record the ownership on the
+  // image too, so the link survives damage to the book record.
+  if (key) {
+    const current = stored ?? book
+    await saveBook({ ...current, coverId: match.coverId, coverBlobKey: key })
+    await tagImageOwner(key, book)
+  }
+  return key
 }
 
 /**

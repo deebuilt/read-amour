@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Empty, Input, Spin, Typography } from 'antd'
 import { coverUrl, searchBooks } from '../../api/openLibrary'
 import { ensureCoverStored } from '../../api/covers'
-import { saveBook } from '../../storage/db'
+import { saveBook, tagImageOwner } from '../../storage/db'
 import { color, fontSize, space } from '../../design/tokens'
 import type { Book, CoverSearchResult } from '../../types/domain'
 import styles from './BookSearch.module.css'
@@ -83,6 +83,9 @@ export function BookSearch({ onSelect }: BookSearchProps) {
           source: 'search',
         }
         await saveBook(book)
+        // Record the ownership on the image as well, so the cover can be
+        // matched back to this book if the book's own link is ever lost.
+        if (blobKey) await tagImageOwner(blobKey, book)
         onSelect(book)
         setQuery('')
         setResults([])

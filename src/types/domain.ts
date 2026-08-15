@@ -123,6 +123,14 @@ export interface Board {
   month: string
   text: PosterText
   grid: GridConfig
+  /**
+   * Whether a rated book shows its stars on the cover.
+   *
+   * Off by default: the poster has always been covers alone, and turning every
+   * book into a review is a different object. Undefined reads as off, so boards
+   * saved before this existed keep the look they were made with.
+   */
+  showRatings?: boolean
   background: Background
   treatment?: BackgroundTreatment
   slots: Slot[]
@@ -130,10 +138,26 @@ export interface Board {
   updatedAt: string
 }
 
-/** A cover image held in IndexedDB, keyed by `coverBlobKey`. */
+/**
+ * A cover image held in IndexedDB, keyed by `coverBlobKey`.
+ *
+ * `bookIds` exists because the link between a book and its cover used to live
+ * in exactly one place — `Book.coverBlobKey` — and a single bad write erased it
+ * for a whole library. The blobs survived, but nothing recorded which book each
+ * belonged to, so they were unrecoverable by inspection: correct images sitting
+ * in storage that no code and no human could match back to a title.
+ *
+ * Recording the owning books here makes the relationship survive damage to
+ * either side. It is a list because one cover legitimately serves the same book
+ * across several posters, and the same edition across re-imports.
+ */
 export interface StoredImage {
   key: string
   blob: Blob
+  /** Books known to use this image. Repair reads this when a link is lost. */
+  bookIds?: string[]
+  /** Title at the time of storing, so an orphan is identifiable by eye. */
+  bookTitle?: string
   /** Where it came from, for cache reasoning and re-fetching. */
   sourceUrl?: string
   createdAt: string

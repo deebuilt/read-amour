@@ -1,0 +1,27 @@
+.root {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px;
+  padding-top: 4px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.label {
+  font-size: 12px;
+}
+
+.rate {
+  font-size: 20px;
+}
+
+/* Wide enough for "14 September 2026" without clipping the clear affordance. */
+.datePicker {
+  min-width: 190px;
+}

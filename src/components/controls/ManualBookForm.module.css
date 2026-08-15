@@ -1,0 +1,91 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+}
+
+/*
+ * Cover beside the two text fields rather than above them: at 375px a stacked
+ * cover picker pushes the title input below the fold, and the title is the
+ * field the user came here to type.
+ */
+.coverRow {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.coverPick {
+  display: block;
+  width: 92px;
+  aspect-ratio: 2 / 3;
+  padding: 0;
+  border: 1px dashed var(--ra-line-strong);
+  border-radius: 2px;
+  background: var(--ra-paper-raised);
+  cursor: pointer;
+  overflow: hidden;
+  flex: none;
+}
+
+.coverPreview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.coverPlaceholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 100%;
+  color: var(--ra-ink-faint);
+}
+
+.coverPlaceholderMark {
+  font-size: 21px;
+  line-height: 1;
+}
+
+.coverPlaceholderText {
+  font-size: 12px;
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Date and rating sit side by side; both are narrow enough to share a row. */
+.optional {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.fieldLabel {
+  font-size: 12px;
+}
+
+/* Wide enough for "14 September 2026" without clipping the clear affordance. */
+.datePicker {
+  min-width: 190px;
+}
+
+.rate {
+  font-size: 21px;
+}

@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { Button, Divider, Input, Slider, Typography, Upload } from 'antd'
+import { Button, Divider, Input, Slider, Switch, Typography, Upload } from 'antd'
 import { BUILTIN_BACKGROUNDS } from '../../design/backgrounds'
 import { photosForMonth } from '../../design/photoBackgrounds'
 import { TYPEFACES } from '../../design/typefaces'
@@ -192,6 +192,23 @@ export function DesignPanel({ board, onChange }: DesignPanelProps) {
             value={board.grid.rows}
             onChange={(rows: number) => onChange(resizeGrid(board, { ...board.grid, rows }))}
             style={{ flex: 1, marginInline: space.md }}
+          />
+        </div>
+      </section>
+
+      <Divider className={styles.divider} />
+
+      <section className={styles.section}>
+        <div className={styles.switchRow}>
+          <div className={styles.switchText}>
+            <Typography.Text className={styles.label}>Show ratings</Typography.Text>
+            <Typography.Text style={{ fontSize: fontSize.xs, color: color.inkFaint }}>
+              Stars on books you rated. Unrated books stay bare.
+            </Typography.Text>
+          </div>
+          <Switch
+            checked={board.showRatings === true}
+            onChange={(showRatings) => onChange({ ...board, showRatings })}
           />
         </div>
       </section>

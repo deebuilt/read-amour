@@ -154,6 +154,9 @@ export const Poster = forwardRef<HTMLDivElement, PosterProps>(function Poster(
                   book={book}
                   coverUrl={coverUrl}
                   inkColor={board.text.inkColor}
+                  fontFamily={typeface.stack}
+                  showRating={board.showRatings === true}
+                  slotWidth={slotWidth}
                   isExporting={isExporting}
                   onClick={onSlotClick}
                 />

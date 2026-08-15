@@ -1,11 +1,15 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { Alert, Button, Progress, Typography, Upload } from 'antd'
+import { CheckOutlined } from '@ant-design/icons'
 import { parseGoodreadsCsv, formatMonth, type ImportResult } from '../../import/goodreads'
 import { resolveCoversForBooks, type BatchProgress } from '../../api/covers'
 import { saveBooks } from '../../storage/db'
 import { color, fontSize } from '../../design/tokens'
-import type { Book } from '../../types/domain'
+import { GRID_LIMITS, type Book } from '../../types/domain'
 import styles from './ImportPanel.module.css'
+
+/** The largest grid the poster allows, and so the most books one can hold. */
+const MAX_SLOTS = GRID_LIMITS.maxColumns * GRID_LIMITS.maxRows
 
 /**
  * Goodreads CSV import.
@@ -19,13 +23,53 @@ import styles from './ImportPanel.module.css'
 interface ImportPanelProps {
   /** Called with the chosen month's books, once their covers are resolved. */
   onUseMonth: (month: string, books: Book[]) => void
+  /**
+   * Months that already have a saved poster.
+   *
+   * This is how the panel survives interruption. A full library is worked
+   * through one month at a time, and that can span sessions — so rather than
+   * tracking progress in state that a closed tab would lose, the list reads
+   * the saved posters themselves. Close the tab, come back tomorrow, drop the
+   * same CSV: the months you finished are still marked, because their posters
+   * are still there.
+   */
+  usedMonths: ReadonlySet<string>
+  /**
+   * Create a poster for every month at once, without fetching any covers.
+   *
+   * Making the posters is instant — they are small records — while covers are
+   * one network request per book, which is the entire cost of an import. So
+   * this splits the two: the whole reading history becomes posters immediately,
+   * and covers are filled in per month, on the months worth making.
+   */
+  onCreateAll: (months: { month: string; books: Book[] }[]) => Promise<void>
 }
 
-export function ImportPanel({ onUseMonth }: ImportPanelProps) {
+export function ImportPanel({ onUseMonth, usedMonths, onCreateAll }: ImportPanelProps) {
+  const [isCreatingAll, setIsCreatingAll] = useState(false)
   const [result, setResult] = useState<ImportResult | undefined>()
   const [error, setError] = useState<string | undefined>()
   const [progress, setProgress] = useState<BatchProgress | undefined>()
   const [busyMonth, setBusyMonth] = useState<string | undefined>()
+
+  const remainingCount = useMemo(() => {
+    if (!result) return 0
+    return [...result.byMonth.keys()].filter((month) => !usedMonths.has(month)).length
+  }, [result, usedMonths])
+
+  const handleCreateAll = useCallback(async () => {
+    if (!result) return
+    setIsCreatingAll(true)
+    try {
+      await onCreateAll(
+        [...result.byMonth.entries()]
+          .filter(([month]) => !usedMonths.has(month))
+          .map(([month, books]) => ({ month, books })),
+      )
+    } finally {
+      setIsCreatingAll(false)
+    }
+  }, [result, usedMonths, onCreateAll])
 
   const handleFile = useCallback(async (file: File) => {
     setError(undefined)
@@ -97,26 +141,49 @@ export function ImportPanel({ onUseMonth }: ImportPanelProps) {
           <Typography.Text className={styles.label}>
             {result.books.length} books read
             {result.undatedCount > 0 && ` · ${result.undatedCount} with no date`}
+            {remainingCount > 0 && ` · ${remainingCount} months to go`}
           </Typography.Text>
 
-          {[...result.byMonth.entries()].map(([month, books]) => (
-            <div key={month} className={styles.month}>
-              <div className={styles.monthMeta}>
-                <span className={styles.monthName}>{formatMonth(month)}</span>
-                <span className={styles.monthCount} style={{ color: color.inkFaint }}>
-                  {books.length} {books.length === 1 ? 'book' : 'books'}
-                </span>
-              </div>
-              <Button
-                size="small"
-                onClick={() => void handleMonth(month, books)}
-                loading={busyMonth === month}
-                disabled={busyMonth !== undefined}
-              >
-                Use
+          {remainingCount > 1 && (
+            <div className={styles.createAll}>
+              <Button block loading={isCreatingAll} onClick={() => void handleCreateAll()}>
+                Make all {remainingCount} posters
               </Button>
+              <Typography.Text style={{ fontSize: fontSize.xs, color: color.inkFaint }}>
+                Instant, without cover art — the books go on, then use a month below to
+                fetch its covers.
+              </Typography.Text>
             </div>
-          ))}
+          )}
+
+          {[...result.byMonth.entries()].map(([month, books]) => {
+            const isUsed = usedMonths.has(month)
+            // A month with more books than the biggest grid holds cannot fit;
+            // saying so here beats silently dropping the overflow on tap.
+            const overflow = Math.max(0, books.length - MAX_SLOTS)
+
+            return (
+              <div key={month} className={styles.month}>
+                <div className={styles.monthMeta}>
+                  <span className={styles.monthName}>{formatMonth(month)}</span>
+                  <span className={styles.monthCount} style={{ color: color.inkFaint }}>
+                    {books.length} {books.length === 1 ? 'book' : 'books'}
+                    {overflow > 0 && ` · ${overflow} won't fit`}
+                  </span>
+                </div>
+                <Button
+                  size="small"
+                  type={isUsed ? 'text' : 'default'}
+                  icon={isUsed ? <CheckOutlined /> : undefined}
+                  onClick={() => void handleMonth(month, books)}
+                  loading={busyMonth === month}
+                  disabled={busyMonth !== undefined}
+                >
+                  {isUsed ? 'Again' : 'Use'}
+                </Button>
+              </div>
+            )
+          })}
         </div>
       )}
     </div>

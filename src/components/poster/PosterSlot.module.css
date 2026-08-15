@@ -17,3 +17,79 @@
   object-fit: cover;
   user-select: none;
 }
+
+/*
+ * Rating band across the foot of a cover.
+ *
+ * Sized in export pixels like everything else on the poster. The gradient is a
+ * scrim, not decoration: it guarantees the stars read on a pale cover as well
+ * as a dark one, which a bare text shadow does not.
+ *
+ * Every colour is a literal — this is inside the exported PNG, where a CSS
+ * custom property cannot be resolved.
+ */
+/* Vertical padding and every star dimension are set inline, derived from the
+   slot width — see PosterSlot.tsx. */
+.ratingBand {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  justify-content: center;
+  padding-inline: 10px;
+  background: linear-gradient(to top, rgba(12, 10, 9, 0.72), rgba(12, 10, 9, 0));
+  pointer-events: none;
+}
+
+.ratingStars {
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/*
+ * Stand-in for a book whose edition has no cover art.
+ *
+ * Sizes are in export pixels against the 1080x1920 canvas, like everything
+ * else on the poster — the whole thing is CSS-scaled for preview, so these
+ * stay correct at any display size.
+ *
+ * Centred and inset rather than filling the slot, so it reads as a typeset
+ * plate inside the frame rather than text jammed against the border.
+ */
+.fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 22px 16px;
+  text-align: center;
+  user-select: none;
+}
+
+.fallbackTitle {
+  font-size: 30px;
+  line-height: 1.25;
+  font-weight: 500;
+  /* Four lines is what a 2:3 slot holds at this size before it crowds the
+     author line; longer titles ellipsis rather than overflow the frame. */
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.fallbackAuthor {
+  font-size: 22px;
+  line-height: 1.25;
+  /* Quieter than the title without introducing a second colour, which would
+     have to be a fixed hex to survive export. */
+  opacity: 0.72;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

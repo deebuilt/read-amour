@@ -57,9 +57,15 @@ export const BUILTIN_BACKGROUNDS: readonly BuiltinBackground[] = [
     isLight: false,
   },
   {
-    id: 'linen',
-    name: 'Linen',
-    css: 'linear-gradient(170deg, #faf6ef 0%, #ece4d6 100%)',
+    /*
+     * Cool rather than warm, and deliberately so: this used to be a warm
+     * off-white gradient that averaged out to almost exactly `paper`, and the
+     * two were indistinguishable as swatches. A light ground earns its place
+     * here only by differing in temperature, not by a few points of lightness.
+     */
+    id: 'stone',
+    name: 'Stone',
+    css: 'linear-gradient(170deg, #e8e8ea 0%, #cdcfd4 100%)',
     isLight: true,
   },
   {

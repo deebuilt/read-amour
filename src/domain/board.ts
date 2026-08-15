@@ -20,11 +20,20 @@ import { DEFAULT_GRID, type Board, type Book, type GridConfig, type Slot } from 
  * are cheap to fix and expensive to lose, so this migrates rather than resets.
  */
 export function migrateBoard(board: Board): Board {
-  const ink = board.text.inkColor
-  if (!ink.startsWith('var(')) return board
+  let migrated = board
+
+  // `linen` was a warm off-white so close to `paper` that the two were the
+  // same swatch; it became the cooler `stone`. Boards still naming it would
+  // otherwise fall back to `paper` and silently change appearance.
+  if (migrated.background.kind === 'builtin' && migrated.background.id === 'linen') {
+    migrated = { ...migrated, background: { kind: 'builtin', id: 'stone' } }
+  }
+
+  const ink = migrated.text.inkColor
+  if (!ink.startsWith('var(')) return migrated
 
   // The only variable ever written here was the dark chrome ink.
-  return { ...board, text: { ...board.text, inkColor: color.posterInkDark } }
+  return { ...migrated, text: { ...migrated.text, inkColor: color.posterInkDark } }
 }
 
 export function currentMonthKey(): string {
@@ -37,7 +46,15 @@ function emptySlots(grid: GridConfig): Slot[] {
   return Array.from({ length: grid.columns * grid.rows }, (_, index) => ({ index }))
 }
 
-export function createBoard(month: string = currentMonthKey()): Board {
+/**
+ * Create a poster.
+ *
+ * `month` is not a constraint on what the poster is — nothing in the app
+ * enforces one, and a year-in-review or a themed list is just as valid. It
+ * survives as the key the Goodreads importer groups rows by, and as the source
+ * of the default title. The title is what the user actually sees and renames.
+ */
+export function createBoard(month: string = currentMonthKey(), title?: string): Board {
   const now = new Date().toISOString()
   const background = getBuiltinBackground(DEFAULT_BACKGROUND_ID)
 
@@ -45,7 +62,7 @@ export function createBoard(month: string = currentMonthKey()): Board {
     id: crypto.randomUUID(),
     month,
     text: {
-      title: monthName(month),
+      title: title?.trim() || monthName(month),
       subtitle: 'Reading',
       caption: undefined,
       typefaceId: DEFAULT_TYPEFACE_ID,

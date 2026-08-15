@@ -18,6 +18,20 @@
   color: var(--ra-ink-faint);
 }
 
+.switchRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.switchText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
 .divider {
   margin-block: 20px;
 }
