@@ -2,6 +2,7 @@ import { DEFAULT_BACKGROUND_ID, getBuiltinBackground } from '../design/backgroun
 import { DEFAULT_TYPEFACE_ID } from '../design/typefaces'
 import { color } from '../design/tokens'
 import { inkForColor } from '../design/palette'
+import { newId } from './ids'
 import { monthName } from '../import/goodreads'
 import {
   DEFAULT_GRID,
@@ -138,7 +139,7 @@ export function createBoard(month: string = currentMonthKey(), title?: string): 
   const background = getBuiltinBackground(DEFAULT_BACKGROUND_ID)
 
   return {
-    id: crypto.randomUUID(),
+    id: newId(),
     month,
     text: {
       title: title?.trim() || monthName(month),

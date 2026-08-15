@@ -1,43 +1,107 @@
-import { SaveOutlined, ShareAltOutlined } from '@ant-design/icons'
-import { Modal, Typography } from 'antd'
+import { PlayCircleOutlined, SaveOutlined, ShareAltOutlined } from '@ant-design/icons'
+import { Modal, Slider, Typography } from 'antd'
+import { MAX_DURATION_MS, MIN_DURATION_MS } from '../../export/posterVideo'
 import styles from './ExportSheet.module.css'
 
 /**
  * What to do with the finished poster.
  *
- * The export button used to do one thing and guess which: where the browser
- * could share files it opened the OS share sheet, otherwise it downloaded. On
- * a phone that meant the button labelled Download never downloaded — it handed
- * the poster to Android's sheet, and the copy you meant to keep was never
- * written.
+ * Four actions, which are really a two-by-two: a still or the animation, kept on
+ * the device or handed to another app. So they are grouped by **what** and
+ * ordered by **where**, which is the order the decision is actually made in —
+ * you know whether you want the video before you know what you are doing with
+ * it.
  *
- * Saving and posting are different intentions and neither is the obvious
- * default, so the app asks rather than deciding. Two choices only: this is a
- * fork in the road, not a settings panel.
+ * They were a flat list of five rows before, and the flattening is what broke
+ * it. Save-image, save-video, share-image, share-video read as four unrelated
+ * buttons with nothing to say that two pairs of them are the same choice made
+ * twice. And the animation length had nowhere to live: it governs both video
+ * rows and neither image row, so wherever it sat in a flat column it looked
+ * like a setting on whichever row happened to be above it. Ruthnie: "I wouldn't
+ * know what the animation length thing is doing."
  *
- * The share option is omitted entirely where the device cannot share files,
- * since a choice that does nothing is worse than no choice.
+ * Grouping fixes it without nesting. The control heads the animation group,
+ * with both video actions beneath it, so what it applies to is legible from
+ * where it sits. A nested version was built first and thrown away: it cost a tap
+ * to reach the most common action, and putting the slider inside each video row
+ * separately would have duplicated one setting across two places, which is the
+ * flat problem again in miniature.
+ *
+ * The share rows are omitted where the device cannot share files, and the
+ * animation group where the browser cannot encode, since a choice that does
+ * nothing is worse than no choice.
  */
+
+export type ExportIntent = 'save' | 'video' | 'share' | 'shareVideo'
 
 interface ExportSheetProps {
   open: boolean
   /** Whether this device can hand files to an OS share sheet. */
   canShare: boolean
+  /** Whether this browser can encode video at all. */
+  canAnimate: boolean
+  /** Why not, when it cannot — the two reasons need different sentences. */
+  videoBlockedBy?: 'insecure-context' | 'unsupported'
+  /** How long the video runs, in milliseconds. The reader's choice. */
+  durationMs: number
+  onDurationChange: (durationMs: number) => void
+  /** Covers on the poster, so the control can say what the pace works out to. */
+  coverCount: number
   /** True while a poster is being rendered, so the sheet can show which. */
-  busy?: 'save' | 'share'
+  busy?: ExportIntent
+  /** 0 to 1 while the animation renders. Frames take long enough to show. */
+  videoProgress?: number
   onSave: () => void
+  onSaveVideo: () => void
   onShare: () => void
+  onShareVideo: () => void
   onCancel: () => void
 }
 
 export function ExportSheet({
   open,
   canShare,
+  canAnimate,
+  videoBlockedBy,
+  durationMs,
+  onDurationChange,
+  coverCount,
   busy,
+  videoProgress,
   onSave,
+  onSaveVideo,
   onShare,
+  onShareVideo,
   onCancel,
 }: ExportSheetProps) {
+  const isBusy = busy !== undefined
+
+  /**
+   * What the chosen length works out to per cover.
+   *
+   * The slider sets a total, but what the reader is judging is how long each
+   * book gets — and that depends on how many are on the poster, which is not
+   * arithmetic they should have to do. Ten seconds across three books is
+   * unhurried; the same ten across twenty is brisk.
+   *
+   * The 0.62 mirrors the reveal's share of the clip in `posterToVideo`, and was
+   * checked against the encoder's own arithmetic rather than eyeballed — exact
+   * to the millisecond across every duration and cover count.
+   */
+  const seconds = (durationMs / 1000).toFixed(1).replace(/\.0$/, '')
+  const perCover = coverCount > 1 ? (durationMs * 0.62) / (coverCount - 1) / 1000 : undefined
+  const pace =
+    coverCount === 0
+      ? 'No covers on this poster yet.'
+      : perCover === undefined
+        ? 'One cover, so the clip rests on it.'
+        : `${coverCount} covers, about ${perCover.toFixed(perCover < 1 ? 2 : 1)}s apart.`
+
+  const progressSuffix =
+    videoProgress !== undefined && videoProgress > 0
+      ? ` ${Math.round(videoProgress * 100)}%`
+      : ''
+
   return (
     <Modal
       open={open}
@@ -48,8 +112,8 @@ export function ExportSheet({
       title="Your poster"
       // Rendering the poster takes a moment; dismissing mid-export would leave
       // the work running with nowhere to land.
-      maskClosable={busy === undefined}
-      closable={busy === undefined}
+      maskClosable={!isBusy}
+      closable={!isBusy}
       /*
        * The shell already clips itself and the document, so antd does not need
        * to take the scrollbar away on open — and its restore afterwards was
@@ -59,44 +123,124 @@ export function ExportSheet({
        */
       styles={{ wrapper: { overflow: 'hidden' } }}
     >
-      <div className={styles.options}>
-        <button
-          type="button"
-          className={styles.option}
-          onClick={onSave}
-          disabled={busy !== undefined}
-        >
-          {/* The same mark the bar button carries, so the save path reads as
-              one continuous action rather than two different ideas. */}
-          <SaveOutlined className={styles.icon} aria-hidden />
-          <span className={styles.text}>
-            <Typography.Text className={styles.label}>
-              {busy === 'save' ? 'Saving…' : 'Save to your photos'}
-            </Typography.Text>
-            <Typography.Text className={styles.hint}>
-              Downloads the image. Keeps a copy you can post whenever.
-            </Typography.Text>
-          </span>
-        </button>
+      <div className={styles.groups}>
+        <section className={styles.group}>
+          <Typography.Text className={styles.groupHeading}>Image</Typography.Text>
 
-        {canShare && (
-          <button
-            type="button"
-            className={styles.option}
-            onClick={onShare}
-            disabled={busy !== undefined}
-          >
-            <ShareAltOutlined className={styles.icon} aria-hidden />
-            <span className={styles.text}>
+          <div className={styles.options}>
+            <button
+              type="button"
+              className={styles.option}
+              onClick={onSave}
+              disabled={isBusy}
+            >
+              <SaveOutlined className={styles.icon} aria-hidden />
               <Typography.Text className={styles.label}>
-                {busy === 'share' ? 'Preparing…' : 'Share'}
+                {busy === 'save' ? 'Saving…' : 'Save photo'}
               </Typography.Text>
-              <Typography.Text className={styles.hint}>
-                Opens your phone's share menu — straight to Instagram.
-              </Typography.Text>
-            </span>
-          </button>
-        )}
+            </button>
+
+            {canShare && (
+              <button
+                type="button"
+                className={styles.option}
+                onClick={onShare}
+                disabled={isBusy}
+              >
+                <ShareAltOutlined className={styles.icon} aria-hidden />
+                <Typography.Text className={styles.label}>
+                  {busy === 'share' ? 'Preparing…' : 'Share photo'}
+                </Typography.Text>
+              </button>
+            )}
+          </div>
+        </section>
+
+        <section className={styles.group}>
+          <Typography.Text className={styles.groupHeading}>Animation</Typography.Text>
+
+          {canAnimate ? (
+            <div className={styles.options}>
+              {/*
+                The length control heads the group it governs.
+
+                Nothing sits between it and the two actions it affects, which is
+                the entire point — flat, it had an image row above it and a video
+                row below, and belonged visibly to neither.
+
+                It is also the only setting the animation exposes. Every other
+                timing was a constant invented in the encoder — a per-cover beat,
+                a floor under it, a minimum total, two end holds — and they were
+                wrong twice running, because pacing is taste and none of them
+                were derived from anything. The reader sets the length; the rest
+                follows from that and from how many covers there are.
+              */}
+              <div className={styles.duration}>
+                <div className={styles.durationHead}>
+                  <span className={styles.durationLabel}>
+                    <PlayCircleOutlined className={styles.durationIcon} aria-hidden />
+                    <Typography.Text className={styles.label}>Length</Typography.Text>
+                  </span>
+                  <Typography.Text className={styles.durationValue}>{seconds}s</Typography.Text>
+                </div>
+                <Slider
+                  min={MIN_DURATION_MS}
+                  max={MAX_DURATION_MS}
+                  step={500}
+                  value={durationMs}
+                  onChange={onDurationChange}
+                  disabled={isBusy}
+                  tooltip={{ open: false }}
+                  aria-label="How long the animation runs, in seconds"
+                />
+                <Typography.Text className={styles.hint}>{pace}</Typography.Text>
+              </div>
+
+              {/*
+                Every label names what it acts on: photo or video.
+
+                Both groups said "Save to your photos" at one point, with the
+                same floppy icon, one of them producing an MP4 — the hint line
+                was carrying the entire distinction, which is too much to ask of
+                the small grey text nobody reads first. Naming the artefact in
+                the label costs one word and removes the ambiguity outright.
+              */}
+              <button
+                type="button"
+                className={styles.option}
+                onClick={onSaveVideo}
+                disabled={isBusy}
+              >
+                <SaveOutlined className={styles.icon} aria-hidden />
+                <Typography.Text className={styles.label}>
+                  {busy === 'video' ? `Building…${progressSuffix}` : 'Save video'}
+                </Typography.Text>
+              </button>
+
+              {canShare && (
+                <button
+                  type="button"
+                  className={styles.option}
+                  onClick={onShareVideo}
+                  disabled={isBusy}
+                >
+                  <ShareAltOutlined className={styles.icon} aria-hidden />
+                  <Typography.Text className={styles.label}>
+                    {busy === 'shareVideo' ? `Building…${progressSuffix}` : 'Share video'}
+                  </Typography.Text>
+                </button>
+              )}
+            </div>
+          ) : (
+            /* One line rather than disabled rows: there is nothing to choose
+               between here, only a reason it is unavailable. */
+            <Typography.Text className={styles.unavailable}>
+              {videoBlockedBy === 'insecure-context'
+                ? 'Needs a secure connection — open the app over HTTPS.'
+                : 'This browser cannot record video.'}
+            </Typography.Text>
+          )}
+        </section>
       </div>
     </Modal>
   )

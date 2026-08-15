@@ -1,5 +1,6 @@
 import { storeUploadedImage } from '../api/covers'
 import { saveBook, tagImageOwner } from '../storage/db'
+import { newId } from './ids'
 import type { Book } from '../types/domain'
 
 /**
@@ -33,7 +34,7 @@ export interface ManualBookInput {
  * with the same title never collide.
  */
 export function manualBookId(): string {
-  return `manual-${crypto.randomUUID()}`
+  return `manual-${newId()}`
 }
 
 /**

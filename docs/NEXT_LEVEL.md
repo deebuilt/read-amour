@@ -304,7 +304,32 @@ event, and it must not cover the poster.
 same update path and "did my change actually land?" is a question that will come
 up on every single one.
 
-## 2.1 Sticker-safe layout
+## 2.1 Sticker-safe layout — DROPPED 2026-08-16
+
+**Not deferred. Dropped, and the reasoning is better than the plan's.**
+
+Ruthnie: *"You don't even know if it's accurate until you actually export and
+then load it into the story. So I don't see the point in bothering with a
+feature just to make some space."*
+
+That is the section's own warning followed through to its conclusion. The
+original text below says reserving too little is worse than not reserving,
+because it implies a safety that is not there — but the band's correctness can
+only be confirmed by exporting, opening Instagram, and dropping a real sticker
+on it. A reserve that cannot be verified from inside the app is a guess the
+poster pays for in slot width on every square grid, forever.
+
+The sticker layer is also just an overlay the user positions by hand. Nothing
+stops them putting a poll on a finished poster today.
+
+Two further things found while assessing it, kept in case it is ever revived:
+`bottomReserve()` in `layout.ts` is already the shape this needed — a derived
+floor with a conditional term — so the arithmetic was genuinely small. And the
+caption is in the way: `captionBottom` is 84 and the handle prints along the
+bottom edge, so a lower-middle band is the caption block *plus* the sticker band
+*plus* both gaps, not a simple `max`.
+
+*Original section follows.*
 
 **What.** A layout mode that reserves a clean, empty band sized for an Instagram
 poll or question sticker, so the reader can drop "which should I read next?"
@@ -327,7 +352,32 @@ little is worse than not reserving — it implies safety that isn't there.
 
 ---
 
-## 2.2 Other frames — 1:1 and 4:5
+## 2.2 Other frames — DROPPED 2026-08-16
+
+**Dropped on demand, not on difficulty.** Ruthnie confirmed the 9:16 poster does
+not fit a feed post — and in the same breath that *"everyone I know typically
+just posts their reading history to their stories."*
+
+Those two facts together kill the item rather than justify it. The frame does
+not fit the feed; nobody is posting to the feed. Building a per-frame grid
+catalogue so that a post nobody makes fits properly is plumbing for a use case
+that does not exist. Revive it the day someone asks for a feed post.
+
+Two corrections to the original section, so a future session does not
+re-discover them:
+
+- **`POSTER` is imported in six places, not the three listed below.** The two
+  missed are `hooks/usePosterSize.ts` (fits the preview to the stage via
+  `aspectRatio`; `MAX_POSTER_WIDTH` of 460 stops meaning what it means at 1:1)
+  and `components/poster/PosterBackground.tsx` (tile size is
+  `POSTER.width / TILE_REPEATS_ACROSS`).
+- **`supportsCoverBleed()` is a 9:16 answer wearing a general disguise.** It
+  reads `columns === rows`, which is *derived* from the frame being 9:16 and
+  slots being 2:3 — see its own comment. At 1:1 it survives by coincidence; at
+  4:5 it would silently return the wrong answer with no type error. The ordering
+  notes flagged this; the section itself did not.
+
+*Original section follows.*
 
 **What.** Export square for the feed, and 4:5 for the taller feed post.
 
@@ -354,41 +404,182 @@ mechanism is closer than it looks.
 
 ---
 
-## 2.3 Motion
+## 2.3 Motion — the poster building itself, as a GIF
 
-**What.** Export a short video — covers landing one at a time, background
-drifting — instead of a still.
+**Scoped and committed 2026-08-16.** The section below replaces the original,
+which proposed a video and budgeted a week. What is actually being built is
+smaller, and the reason it is smaller is that two constraints were removed by
+decision rather than by cleverness: **no video, and no configuration.**
 
-**Why.** It is the only item in this document that changes how the post
-*performs* rather than how it looks. Stories accept video, and motion in a feed
-is a genuine advantage.
+**What.** A third row in `ExportSheet` — *Save as a GIF* — that exports a
+two-second animation of the poster assembling itself, covers appearing one at a
+time in slot order.
 
-**Where it goes.** A new export path beside `posterToBlob`, not a change to it.
+**Why the original plan was wrong to price this at a week.** It budgeted for the
+codec problem: `MediaRecorder` emits WebM where Instagram wants MP4, iOS Safari
+is the weakest implementation of the lot, and proving what a given phone accepts
+means testing across devices before a line of polish is worth writing. Choosing
+GIF deletes all of that. Every platform takes a GIF, Instagram Stories convert
+it to video on upload, and there is no format negotiation to get wrong.
 
-**What will bite — read before committing to this one.**
+### The founding rule is not broken, and that is load-bearing
 
-- **`html-to-image` produces one frame.** It is not an animation tool. Motion
-  means either capturing N frames and encoding them, or animating a real canvas.
-  Both are a different rendering path from the poster DOM — which runs directly
-  against the app's founding rule that preview and export are the same DOM.
-  That rule is why exports match. Breaking it for video is *defensible*, because
-  a video is a different artefact from the poster, but it must be a deliberate
-  decision and the still export must not start going through the new path.
-- **`toBlob` per frame is far too slow** for anything beyond a couple of seconds
-  — expect hundreds of ms per frame. A 3-second clip at 30fps is 90 captures.
-  The realistic approach is to capture the poster **once** as a still, then
-  animate *that image* on a canvas (pan, fade, covers revealing via clipping) and
-  record with `MediaRecorder`. One capture, real-time encode.
-- **`MediaRecorder` output is WebM on most browsers, and Instagram wants MP4.**
-  Safari on iOS — the most likely device for this app — has the weakest support
-  of the lot. Check `MediaRecorder.isTypeSupported` before offering the button
-  at all, and expect to fall back to the still.
-- **This is the heaviest item in the document.** Budget a week, not an evening,
-  and treat it as optional.
+The app's oldest rule is that preview and export are the same DOM. Motion looks
+like it must break that, and the original section said so.
+
+It does not, because of the shape chosen: **the poster is captured once**,
+through the existing `posterToBlob` path, and the animation is produced by
+drawing *that captured still* onto a canvas repeatedly with progressively more
+of it revealed. There is no second rendering of the poster. What animates is the
+PNG the user would otherwise have saved.
+
+Slot rectangles come from `layoutGrid`, which already computes exactly the
+geometry the reveal needs. Nothing new has to know how the poster is laid out.
+
+### Where it goes
+
+- New `src/export/posterGif.ts` — frame composition and encode. Beside
+  `exportPoster.ts`, not inside it.
+- `src/types/gifenc.d.ts` — the encoder publishes no types (~30 lines).
+- `ExportSheet.tsx` — a third row. Its `busy` prop is already
+  `'save' | 'share'`; it gains `'gif'`.
+- `posterFileName()` needs an extension parameter. It hardcodes `.png` today.
+
+### The encoder: gifenc
+
+Researched 2026-08-16. `npm i gifenc` — **~4KB gzipped, pure ESM, MIT, no worker
+file and no WASM.** That last part decided it: the app deploys to a
+`/read-amour/` base path, and any encoder needing a separately-loaded runtime
+asset means hand-plumbing `import.meta.env.BASE_URL` into a worker URL — the
+class of thing that works locally and breaks on deploy.
+
+| | size (min+gz) | last publish | worker/asset file | licence |
+|---|---|---|---|---|
+| **gifenc** | **~3.9KB** | 2021 (repo active 2024) | **none** | MIT |
+| gif.js | ~28KB + worker | **2016** | **mandatory** | MIT |
+| gifshot | ~40KB | 2017 | yes | MIT |
+| modern-gif | ~14KB + 32KB worker | 2026 | optional | MIT |
+| gifski-wasm | 688KB unpacked | 2025 | yes (.wasm) | **AGPL-3.0** |
+
+Why each of the others is out:
+
+- **gif.js** is the one everyone reaches for and it was last published in
+  **December 2016** — 94 open issues, no maintainer. Its mandatory
+  `gif.worker.js` is the base-path problem above, and Vite has a stack of open
+  issues on exactly it. The popular `gif.js.optimized` fork is also from 2016.
+- **gifshot** wraps gif.js and inherits everything.
+- **gifski-wasm** produces the best-looking GIFs and is **AGPL-3.0**. Shipping
+  it in a public client bundle is a distribution, which would put a copyleft
+  obligation on this app. Ruled out on licence before weight.
+- **modern-gif** is the honest runner-up — maintained, real types — but 3.5x the
+  bundle and it wants a base-path-resolved worker asset too.
+
+**There is no native path and none coming.** WebCodecs specifies `AudioEncoder`
+and `VideoEncoder` only — video codecs, not image formats. `ImageDecoder` exists
+and *reads* animated GIF, which is the confusing part, but there is no encoder
+side and `ImageEncoder` is not in the spec at all. Do not re-check this.
+
+### What will bite
+
+- **gifenc has no dithering**, and its author says plainly it suits flat vector
+  graphics rather than photographs. Book covers are photographs. This is the one
+  real risk in the plan. Two settings carry it:
+
+  **Use `rgb565`, never `rgb444`.** The repo's own worker example uses 444 — do
+  not copy it, it was tuned for 150 frames at 1024². At 24 frames the speed
+  difference is irrelevant and 565 is markedly better on gradients and skin.
+
+  **Quantise the FINAL frame and use that palette for every frame.** This is
+  specific to this animation and it is the good idea in the research: the last
+  frame is the fully assembled poster, so it holds every colour that will ever
+  appear and its palette is the correct superset. Per-frame palettes would make
+  covers shift colour subtly as the poster builds — palette flicker, the ugliest
+  artefact available here. It is also free file size, since every frame after
+  the first then writes no colour table at all.
+
+  If banding shows on gradient grounds, a Bayer 4x4 ordered dither is ~20 lines.
+  Do not write it before seeing a real poster.
+
+- **Capture at 540x960 directly, not 1080x1920 downscaled.** Twenty-four
+  full-size bitmap decodes is the same memory spike that made
+  `shrinkStoredUploads()` run sequentially. Halve on the way out of
+  `html-to-image`.
+- **No worker.** Encoding is ~0.3–0.6s on desktop Chrome and ~1.5–3s on a
+  mid-range Android — fast enough on the main thread with a yield between
+  frames. The capture dominates total time, not the encode.
+- **The still export must not start going through this path.** Unchanged from
+  the original section, and still the rule that matters most.
+
+### Numbers
+
+**Two seconds, ~12fps, 540x960.** Expect **~2–2.5MB**. The animation is ideal
+for GIF frame differencing — a static ground means most of each frame is
+unchanged pixels and LZW collapses those, so the first frame is heavy (~200KB)
+and the rest are cheap.
+
+Levers if it comes in fat: **405x720** (44% fewer pixels; Instagram recompresses
+anyway) or **10fps**. Both barely perceptible on an assembling animation.
+
+**Duration is fixed and frames divide among however many covers there are.** A
+2x2 reveals four covers over two seconds, a 4x4 reveals sixteen over the same
+two. That difference is real and the reader feels it — but she finds out by
+making one, not by reading about it in a drawer. It also keeps file size
+predictable across every grid shape.
+
+### The UI: nothing before export
+
+No GIF settings anywhere in the design drawer, no animation preview, no timing
+control. The poster is built exactly as it is today; the choice appears at Save,
+as a third row in the sheet that already exists.
+
+This is not the cheap option, it is the correct one: **the animation has no
+parameters.** Covers appear in slot order, which is the order she already
+arranged them in. Duration is fixed. Frame size is derived. A settings panel
+would be a panel of one button, and a live preview would be an animation looping
+in the drawer while she is trying to pick a typeface.
+
+Changing the poster and exporting again gives a different GIF, the same way it
+gives a different PNG. There is no saved GIF state that can drift from the
+poster.
+
+**Progress.** The GIF takes visibly longer than the PNG. `ExportSheet` already
+locks itself and relabels a busy row, so `'gif'` slots into that. Start with
+"Building…" and only add a percentage if it feels long in testing — the encode
+loop knows its frame index, so it is available.
+
+### Two assumptions, recorded rather than blocked on
+
+Both are taste calls that are cheaper to judge from a real GIF than to decide in
+advance. Defaults chosen; overrule on sight.
+
+1. **The ground does not move.** Covers reveal over a static background. The
+   alternative — ground fades in first, then covers — is a beat longer and a
+   bigger file for a subtler read.
+2. **The title is present from frame one.** Having it type in makes the export
+   read as a slideshow rather than as a poster assembling itself.
 
 ---
 
-## 2.4 Multi-page export
+## 2.4 Multi-page export — DROPPED 2026-08-16
+
+**Dropped for want of the problem.** It exists to rescue a month holding more
+books than the largest grid's twenty. Twenty books in a month is a lot of books,
+and 5x4 is already dense enough that this section calls it uncomfortable. The
+case has not come up.
+
+The real version of this problem is a **year in review**, not a month — and that
+wants its own poster and its own design, not a carousel of two 20-grids.
+
+One finding worth keeping if it is revived: this is *not* purely a loop over the
+existing export, because **there is only ever one `Poster` in the DOM**
+(`App.tsx` renders a single instance into `posterRef`). A second page means
+either mutating `board.slots` and capturing between renders — which is visible
+to the user and races the 50ms settle in `runExport` — or rendering a hidden
+second `Poster` with a sliced slot array and its own ref. The second is right,
+and it does not break the one-rendering-path rule: same component, same
+intrinsic size.
+
+*Original section follows.*
 
 **What.** Split a long month across two posters and export both — a carousel.
 
@@ -481,20 +672,37 @@ that future session:
 ~~3. **1.3 Top-book mark**~~ — **shipped 2026-08-15.**
 ~~—. **1.35 Small posters**~~ — **shipped 2026-08-15**, both 1x1 and 2x1.
 
+**Tier 2 was assessed in full on 2026-08-16 and three of its four items were
+dropped.** Not deferred — dropped, each for a stated reason in its own section.
+What survived is the one Ruthnie actually wanted, and it got cheaper in the
+scoping.
+
 Remaining, in order:
 
-1. **2.1 Sticker-safe layout** — nearly free, and the honest answer to the
-   interactivity question.
-2. **1.4 Non-uniform layouts** — the real design work, and now the only Tier 1
-   item left. It touches `layoutGrid` for everyone, so it wants a session of its
-   own. Note that `bleedLayout()` is already a second generator sitting beside
-   the uniform one — the shape this item proposes is half-started.
-3. **2.4 Multi-page export** — low risk, real benefit for long months.
-4. **2.2 Other frames** — worthwhile, but re-derive the grid catalogue per
-   frame rather than reusing 9:16's. Note that `supportsCoverBleed` is derived
-   from the 9:16 frame too, and would need re-deriving with it.
-5. **2.3 Motion** — heaviest, most optional, and needs its own decision about
-   the second rendering path.
+1. **2.3 Motion, as a GIF** — the poster building itself. Re-scoped from a week
+   to a couple of hours by dropping video for GIF, and by having no
+   configuration at all. Encoder chosen (`gifenc`). **In build.**
+2. **1.4 Non-uniform layouts** — the real design work, and now the only other
+   item left in the document. It touches `layoutGrid` for everyone, so it wants
+   a session of its own. Note that `bleedLayout()` is already a second generator
+   sitting beside the uniform one — the shape this item proposes is
+   half-started.
+
+~~**2.1 Sticker-safe layout**~~ — dropped: the reserve cannot be verified from
+inside the app.
+~~**2.4 Multi-page export**~~ — dropped: twenty books in a month has not
+happened.
+~~**2.2 Other frames**~~ — dropped: the poster does not fit the feed, and nobody
+is posting to the feed.
+
+**One consequence of the three drops worth noticing.** `GRID_LAYOUTS`,
+`MAX_GRID_CAPACITY`, `supportsCoverBleed`, `nearestOfferedGrid` and
+`posterFileName` were shared ground between 1.4 and 2.2, and the document
+noticed it in two places without connecting them — a catalogue restructure that
+would have had to be decided once and would in practice have been decided twice,
+weeks apart, with a migration in between. With 2.2 gone, **1.4 owns that
+catalogue alone.** Only `posterFileName` is touched by 2.3, and only to take an
+extension.
 
 Tier 3 stays parked. Revisit when someone outside the four people asks for it.
 
@@ -698,3 +906,391 @@ found along the way, what was left.)*
   top of a 1920px frame, so a poster with a short title reads as slightly
   bottom-heavy. Fine as it stands, and worth a look during any layout work —
   particularly 1.4, which rebuilds the geometry anyway.
+
+- **2026-08-16 — Tier 2 assessed, three items dropped, one re-scoped and
+  committed.** No code yet; this entry is the decision record the build works
+  from. Every drop is written into its own section above with the reasoning.
+
+  **What survives: 2.3 Motion, as a GIF.** The one item the original document
+  ranked last, called "heaviest, most optional", and budgeted a week for. Two
+  decisions collapsed it:
+
+  **GIF instead of video.** The week was the codec problem — `MediaRecorder`
+  emits WebM where Instagram wants MP4, iOS Safari is the weakest of the lot,
+  and proving what a phone accepts means device testing before any polish is
+  worth writing. Ruthnie: *"I don't wanna have to face compatibility issues."*
+  GIF has none to face. Every platform takes it, and Instagram converts it to
+  video on upload.
+
+  **No configuration.** The animation has no parameters worth exposing — covers
+  appear in slot order, duration is fixed, frame size is derived. So there is no
+  drawer section, no preview, no timing control: a third row in the export sheet
+  and nothing else. Ruthnie proposed this shape herself, including its
+  second-order effect — the pacing difference between a 2x2 and a 4x4 is
+  discovered by making one, which costs seconds, rather than being explained in
+  a control she would have to think about while choosing a grid.
+
+  **The founding rule survives, and that is the part that makes this cheap.**
+  Motion looks like it must break "preview and export are the same DOM", and the
+  original section conceded that it would. It does not: the poster is captured
+  **once** through the existing path, and the animation is that single still
+  redrawn on a canvas with progressively more of it revealed. Slot rectangles
+  come from `layoutGrid`, which already computes them. No second rendering of
+  the poster exists.
+
+  **Encoder researched and chosen: `gifenc`.** ~4KB gzipped, MIT, pure ESM, and
+  critically **no worker file and no WASM** — the app deploys to a
+  `/read-amour/` base path, and any encoder needing a runtime-loaded asset means
+  plumbing `import.meta.env.BASE_URL` into a worker URL, which is the class of
+  thing that works locally and breaks on deploy. Full comparison table in 2.3.
+  The headlines: **gif.js was last published in December 2016** and its worker
+  is mandatory; **gifski-wasm is AGPL-3.0**, which would put a copyleft
+  obligation on this app; **modern-gif** is the honest runner-up but 3.5x the
+  bundle with a worker asset. And **there is no native path** — WebCodecs
+  specifies `AudioEncoder`/`VideoEncoder` only, `ImageEncoder` is not in the spec,
+  and `ImageDecoder` reads GIF but cannot write it. Recorded so nobody re-checks.
+
+  **The known risk, stated plainly:** gifenc has no dithering and its author says
+  it suits flat vector art rather than photographs. Book covers are photographs.
+  Mitigated by `rgb565` (never `rgb444` — the repo's own example uses 444 and was
+  tuned for a different job) and by quantising the **final** frame and reusing
+  that palette globally, since the assembled poster is the colour superset of
+  every frame before it. That also prevents palette flicker, which would be the
+  worst available artefact here.
+
+  **Two taste calls recorded as assumptions rather than blocked on**, both
+  cheaper to judge from a real GIF than to decide in advance: the ground does not
+  move, and the title is present from frame one.
+
+  **Estimate: two to three hours**, against Ruthnie's expectation of a couple and
+  the document's original week. Said as a range rather than promised at ninety
+  minutes. The encode turned out to be the small part; the frame composition and
+  the capture-at-half-size path are where the time goes.
+
+  **Why three items were dropped rather than parked.** Each failed a demand test,
+  not a difficulty test, and each is worth reading in its own section — but the
+  pattern across them is one thing: they were all answers to problems nobody in
+  this app's four-person audience currently has. The sticker band reserves space
+  whose correctness can only be checked by leaving the app; multi-page rescues a
+  twenty-book month that has not occurred; other frames fits a feed post nobody
+  makes. **Ruthnie's own reasoning killed 2.1 and it was sharper than the
+  document's** — the plan warned that reserving too little implies a safety that
+  is not there, and she pointed out the reserve cannot be verified from inside
+  the app at all.
+
+  **A structural consequence, noted in the ordering section.** `GRID_LAYOUTS` and
+  its four readers were shared ground between 1.4 and 2.2 — a catalogue
+  restructure the document noticed twice without connecting, which would have
+  been decided twice with a migration in between. With 2.2 gone, **1.4 owns it
+  alone.**
+
+- **2026-08-16 — 2.3 built. Awaiting Ruthnie's first look.**
+
+  Files: new `export/posterGif.ts` and `types/gifenc.d.ts`; `exportPoster.ts`
+  gains `saveBlob()` and an extension parameter on `posterFileName()`;
+  `ExportSheet` gains a third row and an `ExportIntent` type; `App.tsx` routes
+  the new intent and tracks progress.
+
+  **The plan survived the build.** No corrections to the scoping — the capture
+  path, the encoder choice, the palette strategy and the UI shape all landed as
+  written. What follows is what the build added to it.
+
+  **Reveal geometry is derived from `layoutGrid`, not remeasured.**
+  `revealRects()` calls the same function the poster lays out with and scales
+  the result. So this module knows no poster geometry of its own and cannot
+  drift from it — which matters because 1.4 is going to change that geometry for
+  everyone.
+
+  Verified against all eleven shapes, with and without a caption plate, in bleed
+  mode, on sparse boards and on an empty one: **every rectangle in bounds.** Two
+  numbers cross-check the doc's own arithmetic — 1x1 lands at 936 poster px
+  width-bound and drops to 852 with a caption plate, exactly as recorded under
+  1.35, and bleed tiles the frame exactly on all four square shapes.
+
+  **Frames where nothing changes are skipped**, their time folded into the
+  previous frame's delay. At 12fps a four-cover poster would otherwise write the
+  same picture three times running. A 2x2 comes out 5 frames, a 4x4 17, a 5x4
+  21 — rather than 25 apiece.
+
+  **File size came in under estimate: 1.38MB worst case** (5x4), against the
+  2–2.5MB predicted. Measured on synthetic frames carrying per-pixel random
+  noise, which is the hardest case for LZW — real cover art compresses better,
+  so treat it as a ceiling. Container validated by hand on every shape: correct
+  `GIF89a` signature, 540x960 logical screen, NETSCAPE loop block present,
+  proper trailer.
+
+  **Encoding is ~800ms for a 4x4**, including synthetic frame generation far
+  slower than the canvas path the real code uses. The no-worker decision holds
+  comfortably.
+
+  **One real bug, caught by the build and not by the typecheck.** `tsc --noEmit`
+  passed; `tsc -b` failed on `Uint8Array<ArrayBufferLike>` not being assignable
+  to `BlobPart`. TypeScript 5.7 made `Uint8Array` generic over its buffer and
+  the default admits `SharedArrayBuffer`, which `Blob` will not take. Fixed in
+  the declaration by pinning the buffer to `ArrayBuffer` — true of what gifenc
+  allocates, not a convenient assertion. Verified by reverting the fix and
+  confirming the error returns.
+
+  **This is the same lesson as the 2026-08-16 entry above, in a new form.** That
+  one was `tsc --noEmit` passing on a constant only `oxlint` could see; this is
+  `tsc --noEmit` passing on a type error only project-build mode could see.
+  **`npx tsc --noEmit -p tsconfig.app.json` reproduces build-mode strictness
+  without running a build** — use it, since the full build costs a dev-server
+  restart.
+
+  **Untested until Ruthnie runs it:** the visual result. The known risk is
+  unchanged — gifenc does no dithering and book covers are photographs, so
+  banding on gradient grounds is the thing to look for. Bayer 4x4 is the answer
+  if it shows, ~20 lines, deliberately not written on speculation.
+
+- **2026-08-16 — Ruthnie's first look. Two bugs, one of them not about GIFs at
+  all.**
+
+  **The animation flickered.** Three books on a 4x4 produced a roughly
+  one-second loop of covers snapping in. Her words: *"it's just looping on a
+  flicker, it's not very elegant."* No banding — the dithering risk did not
+  materialise — and 157.9KB, far under the 1.38MB ceiling, which was itself the
+  clue.
+
+  The cause was a frame loop pretending to be a timeline. It stepped 12fps,
+  skipped frames where nothing had changed — correct — and then wrote each
+  surviving frame with a **single frame's delay of 83ms**. So the playback
+  collapsed along with the frame count: three covers landed in ~250ms rather
+  than across two seconds. The comment above the loop claimed the skipped time
+  was folded into the previous frame's delay. It never was; that was written as
+  intent and not implemented, and it is exactly the kind of claim a comment
+  should not be trusted for.
+
+  **A GIF frame's delay IS its duration** — there is no timeline underneath to
+  fall back on. So a frame rate is the wrong thing to build this from. It is now
+  written as **beats: one frame per cover, each held for the time it actually
+  occupies.** Three covers is 400ms each, sixteen is 83ms, and the poster takes
+  about the same two seconds either way. `FPS` survives only as a floor for the
+  busy end — below ~80ms consecutive frames stop reading as separate events,
+  which is the flicker again — so a full 5x4 runs slightly long on purpose.
+
+  Verified across every capacity from 1 to 20: beat length, frame count and
+  total run time all sane, floor engaging at 15+.
+
+  **The phone could not run the app at all, and that is the more serious find.**
+  Opening the LAN address on her phone gave a shell with no canvas, no books and
+  an empty design drawer. Not a GIF bug and not a testing inconvenience:
+  **`crypto.randomUUID()` is only defined in a secure context.** `localhost`
+  qualifies, `http://192.168.x.x` does not. `createBoard()` calls it on first
+  load, so the app threw before it had a board — after the shell had painted,
+  with nothing shown to the user.
+
+  Three call sites had it bare (`domain/board.ts`, `domain/manualBook.ts`,
+  `api/covers.ts`). All now go through **`newId()` in `domain/ids.ts`**, which
+  prefers the native generator and falls back to `crypto.getRandomValues`, then
+  to `Math.random`, building a well-formed v4 either way. Verified in all three
+  contexts: 50,000 ids each, all well-formed, all unique.
+
+  Production was never affected — GitHub Pages is HTTPS. But it meant **the one
+  device this mobile-first app is built for was the one device it could not be
+  checked on**, and that had been true for the whole project. Every
+  `navigator.share` call was already `typeof`-guarded; `crypto.randomUUID` was
+  the only unguarded secure-context API in the codebase.
+
+  **The lesson, and it rhymes with the two already in this log.** The flicker
+  was a comment describing behaviour the code did not have. The phone failure
+  was an API assumed universal because it works on localhost. Both passed
+  typecheck and lint, and both were found in the first thirty seconds of real
+  use — which is the third time in this document that reasoning survived review
+  and did not survive contact.
+
+- **2026-08-16 — GIF abandoned for MP4. The format was wrong, and it was wrong
+  for a reason stated confidently and never checked.**
+
+  Ruthnie uploaded the GIF to a Story: it arrived as a flat photo. No motion, no
+  duration badge, none of the markers her live photos and videos get. TikTok
+  would not recognise the file as media at all.
+
+  **Instagram flattens uploaded GIFs server-side.** Its ingest transcodes images
+  to JPEG and video to MP4, and a `.gif` enters that pipeline as an *image*, so
+  it is reduced to its first frame. Unconditional, not a client bug, and not
+  fixable by re-encoding. The only animation in Stories is the built-in GIPHY
+  sticker integration, which is not a file upload at all. Android's gallery also
+  commonly hands `.gif` to a picker as a still — real, but secondary, since
+  fixing it would buy nothing.
+
+  **This contradicts what § 2.3 asserted when GIF was chosen**: "every platform
+  takes a GIF, and Instagram converts it to video on upload." The second half
+  was false. It came from research, was written into this doc as fact, and was
+  repeated to Ruthnie as the reason GIF "deletes the compatibility problem" —
+  which is the basis on which she chose it. The compatibility problem was not
+  deleted; it was moved to the end of the pipeline, where she found it.
+
+  Worse, the plan had named the correct test and skipped it: *"it gets tested on
+  your phone early — before the polish — because if Instagram rejects the file
+  on your device, the whole thing stops there."* The whole feature was built,
+  geometry and encoder and file size all verified, and the one test that decided
+  whether any of it mattered was never run.
+
+  **MP4 via WebCodecs + mediabunny**, and in 2026 it is the *cheaper* option
+  rather than the expensive one:
+
+  - **WebCodecs `VideoEncoder` is at ~94% support** — Chrome desktop and
+    Android, Edge, Firefox 130+, Samsung Internet, Safari/iOS 16.4+ (whose
+    "partial" support is video-only, which is exactly and only what is needed).
+  - **H.264 Baseline (`avc`) is hardware-accelerated** on essentially all
+    Android hardware, and the most universally decodable profile there is.
+  - **mediabunny is ~5–25KB gzipped tree-shaken, MPL-2.0, zero dependencies,
+    zero WASM, first-class TypeScript.** The ffmpeg.wasm tax that made browser
+    video feel prohibitive — tens of megabytes of side-loaded assets — is simply
+    not the situation any more.
+  - **`mp4-muxer` is deprecated by its own author** in favour of mediabunny.
+    Worth knowing, since it is the library most guides still reach for.
+  - **`MediaRecorder` was considered and rejected.** Chrome does now support
+    `video/mp4` recording, but it captures at wall-clock speed and drops frames
+    under load. WebCodecs writes timing into each sample, so a two-second loop
+    is frame-exact regardless of how fast the machine encodes.
+
+  **What survived the swap: almost everything.** The capture-once approach, the
+  reveal geometry derived from `layoutGrid`, the beat timing, and the export
+  sheet were all format-agnostic. The encoder is the last stage of the pipeline.
+  `posterGif.ts` became `posterVideo.ts`; `gifenc.d.ts` is gone.
+
+  **Two things got better.** Frames now go at the full 1080x1920 rather than
+  540x960 — GIF needed halving because pixel count dominates its file size,
+  while H.264 has interframe compression and this animation (static ground,
+  covers appearing) is close to its best case. And the file should come out
+  smaller than the half-size GIF did.
+
+  **One thing got genuinely harder, and it is the one real departure from the
+  founding rule.** The reveal composites covers over a ground, and that ground
+  cannot be made by erasing the covers out of the finished capture: **a video
+  frame has no alpha channel**, so anything cleared to transparent encodes as
+  solid black. Nor can it be reconstructed by guessing a colour, since the
+  background may be photography and the part behind a cover is precisely the
+  part never otherwise seen.
+
+  So the poster is captured **twice** — once whole, once with
+  `data-ra-hide-covers` set, which hides `img[data-ra-cover]` via
+  `visibility` (not `display`, so nothing reflows and the two captures stay
+  pixel-aligned). Both go through the same `posterToBlob` at the same intrinsic
+  size. The founding rule is that preview and export are one rendering; both of
+  these are that rendering, so it holds.
+
+  **`canExportVideo()` gates the rows**, probed once via mediabunny's
+  `canEncodeVideo` and cached — same reasoning as `canSharePoster()`: a device
+  that cannot do this should not be shown a button that fails.
+
+  **The share sheet gained a fourth row, and this is the part that matters on a
+  phone.** "Share the video" hands the MP4 to `navigator.share()` with a
+  `video/mp4` MIME type, which is what tells the OS to offer motion targets.
+  That path goes straight into Instagram's composer and skips the gallery
+  entirely — and the gallery is exactly where the GIF died, since a picker
+  decides for itself what a file is. Saving still works and is still offered;
+  the app does not choose which was meant. That is the same lesson
+  `downloadPoster()` taught, applied before it could be broken again.
+
+  **Untested until Ruthnie runs it.** The whole point of this entry is that the
+  previous format shipped verified-but-useless, so nothing here is polished,
+  cleaned up or documented further until an MP4 has actually posted to a Story
+  from her phone.
+
+- **2026-08-16 — The video became an animation. Four findings, and the last one
+  is the one that mattered.**
+
+  **The length is the reader's, not the encoder's.** Six timing constants —
+  per-cover beat, a floor under it, a reveal budget, a minimum total, two end
+  holds — were all invented in `posterVideo.ts` and all wrong twice running:
+  first a two-second total inherited from the GIF, then a three-second
+  replacement chosen because two had felt short. None was derived from anything.
+  Frames carry their own durations, so a long clip costs the same to produce as
+  a short one; Instagram's ceiling is 60s per card and nothing here approaches
+  it. **There was never a limit to protect.** All six are gone, replaced by a
+  slider in the export sheet — 2 to 15 seconds — with the opening beat and
+  closing rest as *proportions* so the shape holds at any length.
+
+  Caught while verifying: a one-cover poster came out at 38% of the chosen
+  length, because 62% of the clip was allotted to gaps that do not exist. The
+  remainder goes to the closing rest now. Every duration × cover count is exact.
+
+  **The export sheet groups by artefact.** Four actions are really a two-by-two —
+  still or animation, kept or handed off — and flat they read as four unrelated
+  buttons. Worse, the length control governs both video rows and neither image
+  row, so anywhere in a flat column it looked like a setting on whatever sat
+  above it. Ruthnie: *"I wouldn't know what the animation length thing is
+  doing."* Now two groups with the control heading the animation one. A nested
+  version (choose kind, then destination) was built first and discarded: it cost
+  a tap to reach the commonest action. Row subtitles were removed entirely —
+  they restated their own labels and assumed a phone.
+
+  **One frame per cover was the root bug, and it caused two symptoms that looked
+  unrelated.** The encoder wrote exactly one frame per cover and leaned on
+  per-frame durations: four frames across ten seconds, some three seconds long.
+  Legal MP4, badly behaved. Playback stalled ~3s before starting and differed on
+  the second play once cached — a decoder has no cadence to schedule against.
+  And it is why the result never read as animation: a cover was absent in one
+  frame and present in the next, so its arrival had **no duration to watch**.
+  Spreading them further apart added dead air rather than motion, which is
+  exactly what ten seconds looked like — covers at 1s, 4s and 7s with nothing in
+  between.
+
+  Now a real timeline at **24fps**, with each cover fading up and settling from
+  6% oversized on a cubic ease-out, clipped to its slot. Ruthnie's 10s / 3-cover
+  case went from **4 frames to 240**, with something in motion 51% of the time.
+  Verified across every duration and cover count: exact durations, all covers
+  land, 35–51% of frames carry motion.
+
+  **The lesson, and it is the fourth of its kind in this log.** Every one of
+  these was a number or a structure chosen by reasoning in the abstract —
+  a duration that sounded right, a layout that seemed tidy, a frame model that
+  was technically valid. All four passed typecheck and lint. All four were found
+  in the first minute of somebody actually watching the output.
+
+## Transitions — what is cheap from here
+
+Ruthnie asked what else the covers could do as they land, and what it would
+cost. Recorded now because the architecture that makes these cheap is fresh, and
+because the answer is unusually favourable: **the hard part is already built.**
+
+The frame loop is a real timeline. `compose(progressOf)` is called once per
+frame and asks each cover for a number from 0 to 1 — how far into arriving it
+is. Every transition below is a different way of drawing that one number, inside
+a single function, with no change to the timeline, the encoder, the pacing, or
+the export sheet.
+
+**Free — canvas transforms, a few lines each, no measurable file-size cost:**
+
+- **Spin.** `context.rotate()` about the slot centre, easing from ~15° to 0
+  alongside the existing fade. Ruthnie's own suggestion, and the natural
+  companion to the settle already there. Needs `translate` to the centre first,
+  since canvas rotates about the origin.
+- **Slide.** Offset the destination rect and ease it to true position — from
+  below reads as stacking, from the side as dealing cards. One added term.
+- **Flip.** Scale x from 0 to 1 about the centre. Reads as a card turning face
+  up. Genuinely two lines; a *convincing* flip wants perspective, which 2D
+  canvas cannot do, so this is the honest cheap version.
+- **Stagger by position** rather than by slot index — diagonal, or outward from
+  the centre. Changes `start` in the progress function and nothing else.
+- **Overshoot.** Swap the cubic ease for a back-ease that passes its target and
+  returns. One function, and it is what would make a landing feel physical.
+
+**Cheap but not free:**
+
+- **Drop shadow on arrival**, fading as the cover settles. `shadowBlur` on a
+  moving element is the one expensive canvas operation here — likely fine at
+  720p and 24fps, but worth measuring rather than assuming.
+- **A whole-poster move** — slow push-in or drift under the reveal. Cheap to
+  draw, but it makes every frame differ from the last, which is precisely what
+  H.264 was compressing away. Expect a real size increase.
+
+**Not cheap, and worth knowing before it is proposed:**
+
+- **Anything needing real 3D** (a true perspective flip, a page turn). 2D canvas
+  has no perspective transform. WebGL would mean a second rendering path.
+- **Per-cover motion blur.** Multiple draws per frame, and it would smear the
+  cover art rather than reading as speed.
+- **Text or title animation.** The title is baked into both captures. Animating
+  it separately means capturing it apart from the poster, which breaks the
+  two-capture model — that is a real change, not a transition.
+
+**The likely best first addition is spin plus overshoot together**, since the
+fade and settle already exist and those two make an arrival feel like an object
+landing rather than an image appearing. Both are inside `compose()`.
+
+**If more than one ever ships, it wants a control** — the same argument as the
+length slider. Pacing turned out to be taste, and so is this.

@@ -27,6 +27,28 @@
   height: 100%;
 }
 
+/*
+ * The empty poster, for the animation export.
+ *
+ * The video reveals covers one at a time over the poster's real ground, so it
+ * needs a frame with none of them placed. That cannot be made by erasing the
+ * covers out of the finished capture: a video frame has no alpha, so anything
+ * cleared to transparent encodes as solid black — and the background behind a
+ * cover may be photography, which is precisely the part of it never otherwise
+ * visible. So the poster is captured a second time with this attribute set.
+ *
+ * Covers only. The empty-slot tints, the title, the caption and the background
+ * all stay, because they are present throughout the animation and only the
+ * cover art arrives during it.
+ *
+ * `visibility` rather than `display` so nothing reflows — the slot keeps its
+ * box, and the two captures stay pixel-aligned with each other. A layout shift
+ * between them would misplace every cover in the video.
+ */
+.frame[data-ra-hide-covers='true'] img[data-ra-cover='true'] {
+  visibility: hidden;
+}
+
 .header {
   text-align: center;
 }

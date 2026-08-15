@@ -1,21 +1,68 @@
+/*
+ * Two groups: the image and the animation.
+ *
+ * The gap between groups is much larger than the gap between rows inside one,
+ * because that spacing is what does the grouping — without it four rows read as
+ * one undifferentiated list, which is exactly what this replaced.
+ */
+.groups {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding-block: 4px;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/*
+ * The group heading answers "what am I exporting", so it outranks the labels
+ * inside the rows, which answer "where is it going". Set small and tracked
+ * rather than large: it is a category marker, not a title competing with the
+ * modal's own.
+ */
+.groupHeading {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ra-ink-faint);
+}
+
 .options {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding-block: 4px;
+}
+
+.unavailable {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ra-ink-faint);
+  padding: 2px 2px 4px;
 }
 
 /*
- * Each option is a full row, not a button in a row of buttons. There are only
- * two and they are not equivalent — one keeps the poster, the other sends it —
- * so each gets its own line and a sentence explaining what it actually does.
+ * Each option is a full row, and a single line of it.
+ *
+ * These carried an explanatory sentence each — "keeps a copy you can post
+ * whenever", "opens your phone's share menu" — and every one of them was
+ * telling the reader something they already knew. Save and share are the two
+ * most understood verbs on a phone. The sentences also assumed a phone, which
+ * the desktop app is standing evidence against.
+ *
+ * The length control keeps its hint, because that one says something the label
+ * cannot: what the chosen duration works out to per cover.
  */
 .option {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 14px;
   width: 100%;
-  padding: 14px;
+  padding: 13px 14px;
   border: 1px solid var(--ra-line);
   border-radius: 8px;
   background: none;
@@ -37,17 +84,8 @@
 
 .icon {
   flex: none;
-  font-size: 20px;
-  /* Optically aligns the glyph with the label's cap height. */
-  margin-top: 2px;
+  font-size: 18px;
   color: var(--ra-ink-soft);
-}
-
-.text {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
 }
 
 .label {
@@ -57,12 +95,69 @@
 }
 
 /*
- * The hint carries the real difference between the two choices, so it is a
- * sentence rather than a fragment — "Downloads the image" is the answer to the
- * question the sheet exists to ask.
+ * Only the length control uses this now.
+ *
+ * The action rows had one each and they all restated their own labels. This
+ * one earns its place: it says what the chosen duration works out to per cover,
+ * which is arithmetic the reader would otherwise have to do.
  */
 .hint {
   font-size: 12px;
   line-height: 1.4;
   color: var(--ra-ink-faint);
+}
+
+/*
+ * The length control.
+ *
+ * Sits inside the same bordered-row rhythm as the options but reads as a
+ * setting rather than an action — no hover state, no pointer, since tapping it
+ * anywhere other than the slider should do nothing.
+ */
+/*
+ * The length control.
+ *
+ * Bordered like the action rows so the group reads as one column, but visibly
+ * not a button: no hover state and no pointer, since tapping anywhere other
+ * than the slider should do nothing. The tinted ground is what separates a
+ * setting from the things that act on it.
+ */
+.duration {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px 4px;
+  border: 1px solid var(--ra-line);
+  border-radius: 8px;
+  background: var(--ra-paper-raised);
+}
+
+.durationHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* The icon aligns the control with the rows beneath it, which all lead with
+   one — so the group reads as a column rather than as a setting and then a
+   separate list. */
+.durationLabel {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.durationIcon {
+  font-size: 15px;
+  color: var(--ra-ink-faint);
+}
+
+/* Tabular figures so the number does not jitter as the slider moves. */
+.durationValue {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ra-ink);
+  font-variant-numeric: tabular-nums;
 }

@@ -178,6 +178,72 @@ function triggerDownload(blob: Blob, fileName: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 10_000)
 }
 
-export function posterFileName(month: string): string {
-  return `read-amour-${month}.png`
+/**
+ * File name for an export.
+ *
+ * Takes the extension because the poster now leaves in two formats. It is not
+ * cosmetic: both the OS gallery and a share sheet's target app decide what a
+ * file *is* partly from its extension, so a video named `.png` is a video
+ * nothing will play.
+ */
+export function posterFileName(month: string, extension: 'png' | 'mp4' = 'png'): string {
+  return `read-amour-${month}.${extension}`
+}
+
+/**
+ * Write an already-rendered blob to the device.
+ *
+ * `savePoster` captures and then saves; the GIF path has already done its own
+ * capturing by the time it has bytes, so it needs the second half alone. Both
+ * go through the same iOS fallback — `<a download>` does nothing for blob URLs
+ * there, and the share sheet is the only route to a file.
+ */
+export async function saveBlob(blob: Blob, fileName: string, mimeType: string): Promise<void> {
+  if (supportsDownload()) {
+    triggerDownload(blob, fileName)
+    return
+  }
+
+  const file = new File([blob], fileName, { type: mimeType })
+  if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file] })
+      return
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return
+    }
+  }
+
+  triggerDownload(blob, fileName)
+}
+
+/**
+ * Hand an already-rendered blob to the OS share sheet.
+ *
+ * The MIME type is what makes this work for video: the OS reads it, along with
+ * the extension, to decide which apps to offer. `video/mp4` surfaces Instagram
+ * and TikTok as motion targets; `image/png` would offer the same apps but hand
+ * them a photo. Passing the type through honestly is the whole mechanism.
+ *
+ * This is the primary path for the animation on a phone. Saving to the gallery
+ * and picking the file up later also works, but a picker decides for itself
+ * what a file is — which is exactly where the GIF version of this feature died.
+ * The share sheet skips that judgement entirely.
+ */
+export async function shareBlob(blob: Blob, fileName: string, mimeType: string): Promise<void> {
+  const file = new File([blob], fileName, { type: mimeType })
+
+  if (typeof navigator.canShare !== 'function' || !navigator.canShare({ files: [file] })) {
+    // Should be unreachable from a UI that checked first, but a share the
+    // device cannot do must still leave the user with the file.
+    triggerDownload(blob, fileName)
+    return
+  }
+
+  try {
+    await navigator.share({ files: [file] })
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') return
+    throw error
+  }
 }

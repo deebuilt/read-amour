@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { App as AntApp, Button, ConfigProvider, Drawer, Spin } from 'antd'
 import {
   AppstoreOutlined,
@@ -13,7 +13,7 @@ import { ImportPanel } from './components/controls/ImportPanel'
 import { SlotEditor } from './components/controls/SlotEditor'
 import { BookList } from './components/controls/BookList'
 import { PostersPanel } from './components/controls/PostersPanel'
-import { ExportSheet } from './components/controls/ExportSheet'
+import { ExportSheet, type ExportIntent } from './components/controls/ExportSheet'
 import { Wordmark } from './components/chrome/Wordmark'
 import { ThemeToggle } from './components/chrome/ThemeToggle'
 import { AboutPanel } from './components/chrome/AboutPanel'
@@ -26,12 +26,26 @@ import { useTheme } from './hooks/useTheme'
 import {
   clearSlots,
   createBoard,
+  filledCount,
   fillSlots,
   moveSlot,
   setFavouriteBook,
   setSlotBook,
 } from './domain/board'
-import { canSharePoster, posterFileName, savePoster, sharePoster } from './export/exportPoster'
+import {
+  canSharePoster,
+  posterFileName,
+  saveBlob,
+  savePoster,
+  shareBlob,
+  sharePoster,
+} from './export/exportPoster'
+import {
+  DEFAULT_DURATION_MS,
+  canExportVideo,
+  posterToVideo,
+  videoUnavailableReason,
+} from './export/posterVideo'
 import { monthName } from './import/goodreads'
 import { getBoardByMonth, saveBoard } from './storage/db'
 import { buildAntTheme } from './design/antTheme'
@@ -90,7 +104,39 @@ export default function App() {
   const [isExporting, setIsExporting] = useState(false)
   const [isExportOpen, setIsExportOpen] = useState(false)
   /** Which export is in flight, so the sheet can say which row is working. */
-  const [exporting, setExporting] = useState<'save' | 'share' | undefined>()
+  const [exporting, setExporting] = useState<ExportIntent | undefined>()
+  /**
+   * How far the animation has rendered, 0 to 1.
+   *
+   * The still is fast enough that a spinner covers it; the video is seconds of
+   * capture and encoding and needs to say so, or it reads as a hang.
+   */
+  const [videoProgress, setVideoProgress] = useState(0)
+  /**
+   * Whether this browser can encode video. Probed once, asynchronously, so the
+   * sheet can leave the animation rows out rather than offer a button that
+   * fails — the same reasoning as `canSharePoster`.
+   */
+  const [canAnimate, setCanAnimate] = useState(false)
+  /**
+   * How long the animation runs. The reader's choice, kept for the session.
+   *
+   * Not on the `Board`: it is a property of an export rather than of the
+   * poster, the way the frame size and the file name are. Two posters do not
+   * want different pacing so much as one person does, and putting it on the
+   * board would mean a poster carrying a video setting it may never use.
+   */
+  const [videoDuration, setVideoDuration] = useState(DEFAULT_DURATION_MS)
+
+  useEffect(() => {
+    let cancelled = false
+    void canExportVideo().then((supported) => {
+      if (!cancelled) setCanAnimate(supported)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   /**
    * Whether this device can share files at all. Read once — it is a capability
@@ -262,26 +308,46 @@ export default function App() {
    * and the frame has to commit before the capture reads the DOM.
    */
   const runExport = useCallback(
-    async (intent: 'save' | 'share') => {
+    async (intent: ExportIntent) => {
       if (!posterRef.current || !board) return
       setExporting(intent)
+      setVideoProgress(0)
       setIsExporting(true)
       // Let the affordance-free render commit before capturing.
       await new Promise((resolve) => window.setTimeout(resolve, 50))
       try {
-        const options = { fileName: posterFileName(board.month) }
-        if (intent === 'save') {
-          await savePoster(posterRef.current, options)
+        if (intent === 'video' || intent === 'shareVideo') {
+          // The animation captures the poster through the same affordance-free
+          // render as the PNG — see `posterToVideo`.
+          const fileName = posterFileName(board.month, 'mp4')
+          const blob = await posterToVideo(posterRef.current, board, {
+            fileName,
+            durationMs: videoDuration,
+            onProgress: setVideoProgress,
+          })
+          // The MIME type is what tells the OS this is motion, so the share
+          // sheet offers video targets rather than photo ones.
+          if (intent === 'shareVideo') {
+            await shareBlob(blob, fileName, 'video/mp4')
+          } else {
+            await saveBlob(blob, fileName, 'video/mp4')
+          }
         } else {
-          await sharePoster(posterRef.current, options)
+          const options = { fileName: posterFileName(board.month) }
+          if (intent === 'save') {
+            await savePoster(posterRef.current, options)
+          } else {
+            await sharePoster(posterRef.current, options)
+          }
         }
         setIsExportOpen(false)
       } finally {
         setIsExporting(false)
         setExporting(undefined)
+        setVideoProgress(0)
       }
     },
-    [board],
+    [board, videoDuration],
   )
 
   /** Months that already have a poster, so the import list can mark them. */
@@ -472,8 +538,16 @@ export default function App() {
             open={isExportOpen}
             canShare={canShare}
             busy={exporting}
+            canAnimate={canAnimate}
+            videoBlockedBy={canAnimate ? undefined : videoUnavailableReason()}
+            durationMs={videoDuration}
+            onDurationChange={setVideoDuration}
+            coverCount={board ? filledCount(board) : 0}
+            videoProgress={videoProgress}
             onSave={() => void runExport('save')}
+            onSaveVideo={() => void runExport('video')}
             onShare={() => void runExport('share')}
+            onShareVideo={() => void runExport('shareVideo')}
             onCancel={() => setIsExportOpen(false)}
           />
         </div>

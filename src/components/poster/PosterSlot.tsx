@@ -248,6 +248,10 @@ export function PosterSlot({
           src={coverUrl}
           alt={book ? `${book.title} cover` : ''}
           draggable={false}
+          /* Marks this as cover art so the animation export can capture the
+             poster once without any covers placed — the ground its reveal
+             composites against. See `Poster.module.css`. */
+          data-ra-cover="true"
         />
       )}
 

@@ -2,6 +2,7 @@ import { appleCoverBlobKey, fetchAppleCoverBlob, findAppleCover } from './appleB
 import { coverBlobKey, fetchCoverBlob, searchByIsbn } from './openLibrary'
 import { shrinkForStorage } from './resizeUpload'
 import { getBook, getImage, hasImage, saveBook, saveImage, tagImageOwner } from '../storage/db'
+import { newId } from '../domain/ids'
 import type { Book } from '../types/domain'
 
 /**
@@ -177,7 +178,7 @@ export function releaseAllObjectUrls(): void {
  * replacement — so the shrink belongs here rather than at the three call sites.
  */
 export async function storeUploadedImage(file: File, prefix: string): Promise<string> {
-  const key = `${prefix}-${crypto.randomUUID()}`
+  const key = `${prefix}-${newId()}`
   const blob = await shrinkForStorage(file)
   await saveImage({
     key,
