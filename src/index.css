@@ -18,16 +18,24 @@
  * never meant to have, and the bottom bar sat below the fold until you scrolled
  * for it.
  *
- * Both ends of the chain use the same unit so they cannot disagree. `overflow:
- * hidden` on the document is the belt to that braces: `.app` clips its own
- * children, but anything portalled to `body` — antd's Drawer and Modal both
- * mount there — is outside `.app` entirely and can otherwise extend the page.
+ * Both ends of the chain use the same unit, so they cannot disagree — and that
+ * on its own is the fix. The document is deliberately NOT `overflow: hidden`:
+ * pull-to-refresh only fires on a scrollable document sitting at offset zero,
+ * so clipping here takes the gesture away entirely, and this app is installed
+ * to a home screen where pulling to refresh is how a new deploy is picked up.
+ *
+ * `#root` carries the clip instead. It contains everything rendered in the
+ * normal tree, so a child that overflows still cannot extend the page, while
+ * the document itself stays gesture-capable.
  */
 html,
-body,
-#root {
+body {
   height: 100dvh;
   margin: 0;
+}
+
+#root {
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -36,8 +44,17 @@ body {
   color: var(--ra-ink);
   background: var(--ra-paper);
   -webkit-font-smoothing: antialiased;
-  /* The poster is the scroll surface; the shell itself must not bounce. */
-  overscroll-behavior: none;
+  /*
+   * `overscroll-behavior: none` used to sit here to stop the shell bouncing.
+   * It also cancels pull-to-refresh, which is the only way to pick up a new
+   * deploy once this is installed to a home screen — there is no address bar to
+   * reload from.
+   *
+   * `contain` is the half of that rule actually wanted: it stops a scroll
+   * inside the app chaining out to the page and bouncing the whole shell, and
+   * leaves the refresh gesture alone.
+   */
+  overscroll-behavior: contain;
 }
 
 /* Native form controls and scrollbars follow the theme too. */
