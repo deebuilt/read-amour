@@ -62,6 +62,38 @@ panel. Unsplash doesn't require it; we do it anyway.
 - No `any`. Typecheck with `npm run typecheck` as you go.
 - Mobile-first: the poster owns the screen, controls live in a bottom drawer.
 
+## Planned next (2026-08-15)
+
+Shipped to Ruthnie's sister and her reading friends; these came out of that
+first real use.
+
+**1. Manual book entry with cover upload.** Open Library has no record of some
+2026 releases, so a book simply cannot be added. Let the user upload a cover
+image and fill in title/author/rating by hand. `storeUploadedImage()` already
+handles the blob side — this is mostly a form plus a `source: 'manual'` path,
+which the `Book` type already allows.
+
+Worth trying first, and possibly cheaper: **Google Books as a search fallback**
+(`https://www.googleapis.com/books/v1/volumes?q=`, keyless). Its new-release
+coverage is better than Open Library's. Manual entry is still worth having for
+books in neither, but the fallback may solve the common case.
+
+**2. Surface the book data we already hold.** Every book on a board already
+stores title, author, ISBN, `dateRead`, and `rating` — and none of it is ever
+displayed. A "books this month" list under the poster is buildable today with
+no new data, and it gives manually-added metadata somewhere to live.
+
+Note the asymmetry: books added by *search* have no `dateRead` or `rating`
+(Open Library does not know them), while books from the *Goodreads CSV* do. Any
+list view has to read well when those fields are absent.
+
+**3. Saved months, new month, and reset.** Partly built already: the `boards`
+store, `getBoardByMonth()`, and `startNewBoard()` all exist, and `useBoard()`
+opens the most recent board. Missing is the UI — a month switcher, a "start
+September" action wired to `startNewBoard`, and a clear-this-board action
+(`clearSlots()` exists; a full reset also needs `pruneOrphanedImages()` so
+dropped covers do not leak storage).
+
 ## Deliberately not built
 
 - **Unsplash API at runtime.** Their terms require hotlinking from their CDN
