@@ -211,6 +211,50 @@ poster shows the wrong cover, which looks correct and is worse than blank.
 Open Library, and Apple still finds the right art because it searches on the
 book's own title and author rather than on that bad answer.)
 
+**The merge interleaves by rank; it must never concatenate.** Each catalogue
+ranks its own results, and that ranking is the only relevance signal either one
+gives — there is no score comparable across them. Appending Apple's list after
+Open Library's threw Apple's away entirely: its best hit landed behind Open
+Library's twentieth. Searching "forsaken" put *A Forsaken Prophecy* — Apple's
+#10, absent from Open Library's top 20 — at **position 28**, which is found in
+principle and invisible in practice. Rank leads the sort, a tie goes to the row
+that can fill a slot, and a book both catalogues returned takes the better of
+its two positions. Both limits are 20, matched so neither source dominates.
+
+What this does **not** fix, correctly: a single word shared by dozens of titles.
+Nine books are literally called *Forsaken*, so Apple ranks those first and
+*A Forsaken Prophecy* sits at #10 of its list. That is honest ranking, not a
+bug, and hand-tuning around one book would be worse. Any second word puts it
+first.
+
+**A half-typed word is never sent to the APIs.** Neither catalogue does prefix
+matching, so a trailing fragment is matched as a whole word — it does not narrow
+the search, it derails it. Typing toward "forsaken prophecy": "forsaken pro"
+matched *Pro-Christian* and *GameShark*, "forsaken prophe" matched nothing at
+all, and only the final "cy" snapped back. The list emptied out as the reader
+got closer.
+
+The fix is not a better query. One keystroke earlier the book was already on
+screen — "forsaken" returns it — and the app threw that away to ask a question
+no catalogue can answer. So `parseQuery()` splits the input: whole words go to
+the APIs, and the trailing fragment filters the results locally, where a prefix
+test is exact and free. The book now sits at #1 from "forsaken pr" onward, and
+no keystroke blanks the list.
+
+Two guards this needs. A fragment only counts with **no trailing space** — a
+space means the word is finished. And the remaining words must be
+**substantial**: "the hobbit" reduced to searching "the" returns whatever the
+catalogue likes, none of it Tolkien, and then the fragment filters a set the
+book was never in. If only articles and initials are left, the query goes whole.
+
+**An abort must never be swallowed as an empty result.** `searchAllBooks` wraps
+each fetch so one source failing does not sink the search — but the first
+version caught *everything*, including `AbortError`. The caller debounces and
+cancels the previous request on every keystroke, so a swallowed abort resolved
+as "this source found nothing" and painted a partial list as though it were the
+answer: same query, different results depending on typing speed. Aborts now
+rethrow, and the caller's own `signal.aborted` guard drops them.
+
 **Coverless results are no longer discarded.** `searchBooks()` used to drop
 every row without `cover_i` on the reasoning that a cover-placing app has no use
 for one. That threw away too much — the title, author and ISBN are the tedious

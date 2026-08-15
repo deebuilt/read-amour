@@ -34,7 +34,13 @@ const SEARCH_URL = 'https://itunes.apple.com/search'
  */
 const ARTWORK_SIZE = 600
 
-const SEARCH_LIMIT = 10
+/**
+ * Matched to Open Library's limit so neither source dominates the interleave in
+ * `bookSearch.ts`. At 10 against Open Library's 20, a book sitting deep in
+ * Apple's list could not surface at all — which is how a July release went
+ * missing from a one-word search.
+ */
+const SEARCH_LIMIT = 20
 
 interface AppleResult {
   trackName?: string

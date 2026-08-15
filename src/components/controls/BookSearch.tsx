@@ -66,6 +66,10 @@ export function BookSearch({ onSelect }: BookSearchProps) {
         })
     }, DEBOUNCE_MS)
 
+    // Only the pending timer is cleared here. The in-flight request is aborted
+    // by the NEXT search when its timer fires (line above), not by this
+    // cleanup — cleanup runs on every query change, including the last one, so
+    // aborting here would cancel the search this effect just started.
     return () => window.clearTimeout(timer)
   }, [query])
 
