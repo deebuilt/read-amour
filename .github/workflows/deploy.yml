@@ -37,6 +37,15 @@ jobs:
       - name: Build
         run: npm run build
 
+      # `dist` is the entire deployed site, which is why the custom domain's
+      # CNAME lives in `public/` rather than the repo root: Vite copies
+      # `public/` into `dist` verbatim, and anything outside `dist` is not
+      # published at all.
+      #
+      # Setting the domain through the Pages settings UI writes CNAME to the
+      # repo root, where this workflow would never see it — the next deploy
+      # would ship a site with no CNAME, and GitHub clears the custom domain
+      # when it finds none. The domain would drop on every push.
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

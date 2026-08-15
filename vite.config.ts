@@ -2,9 +2,19 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
-// Served from a route under a shared GitHub Pages subdomain, so the built
-// asset URLs must be prefixed with the repo name. Dev runs from root.
-const BASE = process.env.NODE_ENV === 'production' ? '/read-amour/' : '/'
+/*
+ * Served from the root of its own domain — readamour.com.
+ *
+ * This was `/read-amour/` while the app lived at a route under
+ * deebuilt.github.io, where the built asset URLs had to carry the repo name.
+ * On an apex domain the app IS the site, so the prefix would send every asset
+ * to readamour.com/read-amour/… and the page would come up blank.
+ *
+ * One constant, because it is not only the asset prefix: the PWA `start_url`,
+ * `scope`, and all three icon paths are built from it below. Moving the app
+ * again means changing this line and nothing else.
+ */
+const BASE = '/'
 
 export default defineConfig({
   base: BASE,
