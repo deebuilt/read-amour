@@ -57,3 +57,9 @@
   margin-top: auto;
   text-align: center;
 }
+
+/* Inline-block so the plate wraps the handle, not the full frame width —
+   the same reason `.titleBlock` is. */
+.captionBlock {
+  display: inline-block;
+}

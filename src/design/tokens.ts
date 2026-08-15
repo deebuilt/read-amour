@@ -121,7 +121,33 @@ export const poster = {
   titleSize: 96,
   subtitleSize: 40,
   subtitleTracking: 12,
-  captionSize: 30,
+  /**
+   * The handle along the bottom edge.
+   *
+   * 30 was unreadable, and the reason it looked so much worse than the number
+   * suggests is that it is measured against the 1080px export canvas, not the
+   * screen: on a phone previewing the poster at ~360px wide, 30 export pixels
+   * render at about 10. Small on the exported image, illegible in the preview
+   * where the poster is actually judged.
+   *
+   * 40 matches the subtitle, which is the right relationship — a handle and a
+   * standfirst are both secondary to the title and neither should outrank the
+   * other. It is 3.7% of the frame width, so it holds at every grid shape: the
+   * caption sits in the bottom margin and never competes with the slots.
+   */
+  captionSize: 40,
+  /** Slight tracking: a handle is read character by character, not as a word. */
+  captionTracking: 1,
+  /**
+   * The caption's plate is tighter than the title's.
+   *
+   * The title's 34/52 wraps type set at 96 and would read as a slab around a
+   * 40px handle — a plate should look like it was cut to its type, not like the
+   * type is floating in it. Scaled to roughly the same proportion of the type
+   * it surrounds.
+   */
+  captionPlatePaddingY: 14,
+  captionPlatePaddingX: 24,
   captionBottom: 84,
 } as const
 

@@ -172,15 +172,44 @@ export const Poster = forwardRef<HTMLDivElement, PosterProps>(function Poster(
                 paddingInline: posterTokens.marginX,
               }}
             >
+              {/*
+                Full opacity, not 0.85. The caption is already the smallest type
+                on the poster and it frequently sits over photography — knocking
+                it back as well left a handle that could not be read at all. The
+                poster ink is chosen against the background it sits on, so it is
+                the colour that carries legibility here; dimming it only undoes
+                that choice.
+
+                The title plate covers the handle too. Both are poster type over
+                the same artwork with the same problem, and a plate that rescued
+                the month while leaving the handle to wash out against a busy
+                illustration was solving half of one problem. It is the same
+                object from the board — one control, both pieces of type — so
+                they cannot drift apart in colour or corner.
+              */}
               <span
-                style={{
-                  fontFamily: typeface.stack,
-                  fontSize: posterTokens.captionSize,
-                  color: board.text.inkColor,
-                  opacity: 0.85,
-                }}
+                className={styles.captionBlock}
+                style={
+                  plate
+                    ? {
+                        background: plate.color,
+                        borderRadius: plate.radius,
+                        paddingBlock: posterTokens.captionPlatePaddingY,
+                        paddingInline: posterTokens.captionPlatePaddingX,
+                      }
+                    : undefined
+                }
               >
-                {board.text.caption}
+                <span
+                  style={{
+                    fontFamily: typeface.stack,
+                    fontSize: posterTokens.captionSize,
+                    letterSpacing: posterTokens.captionTracking,
+                    color: board.text.inkColor,
+                  }}
+                >
+                  {board.text.caption}
+                </span>
               </span>
             </footer>
           )}

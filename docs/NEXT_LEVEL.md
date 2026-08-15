@@ -162,6 +162,43 @@ Cheap, and it makes the poster read as authored.
 
 ---
 
+## 1.35 Very small posters — one book, two books
+
+**What.** Grid shapes below the current floor of four. A single book filling the
+poster; two side by side or stacked.
+
+**Why.** The smallest poster the app offers is 2x2, which forces a reader with
+one book they loved into a grid with three empty rectangles. A single-book
+poster is also a genuinely different object — closer to a book announcement or a
+favourite-of-the-year than to a reading list — and it is the shape most likely
+to be posted on its own.
+
+**Where it goes.** `GRID_LAYOUTS` in `types/domain.ts` gains `{ columns: 1, rows:
+1 }` and `{ columns: 2, rows: 1 }`. Both satisfy rows <= columns, so the
+geometry rule holds and `layoutGrid` needs no change to place them.
+
+**What will bite.**
+
+- **A 1x1 slot is width-bound at 936px wide and 1404px tall**, which is far more
+  vertical space than the frame has between the title and the caption. It will
+  come out height-bound instead, around 620px wide — a big cover floating in a
+  lot of side margin. That is the "strands margin" failure the nine shapes were
+  chosen to avoid, and at one book it may read as deliberate rather than broken.
+  Check it against a real cover before deciding; this is a taste call, not an
+  arithmetic one.
+- **`{ columns: 2, rows: 1 }` is the safer of the two** — width-bound, fills the
+  frame, and needs no judgement.
+- **A single cover carries the whole poster**, so cover quality matters much more
+  than it does at 4x4. Worth pairing with 1.3's top-book mark, or with the
+  book's title set large beneath it.
+- **`nearestOfferedGrid` sorts by capacity then aspect**, so adding shapes below
+  the current floor changes what an old oversized board migrates to. Re-check
+  `migrateBoard` after adding them.
+- **`MAX_GRID_CAPACITY` is unaffected** — it takes the max, and these are minima.
+
+**Recommendation.** Do `2x1` first and look at `1x1` on a real cover before
+committing to it.
+
 ## 1.4 Non-uniform layouts
 
 **What.** Compositions that are not equal cells in reading order. A hero layout
@@ -427,3 +464,23 @@ found along the way, what was left.)*
   sized — extraction will not be handed a 24-megapixel bitmap.
 
   Both are written up in `CLAUDE.md` under their own headings.
+
+- **2026-08-15** — Caption legibility. The handle was set at 30px against the
+  1080px export canvas *and* dimmed to 0.85 opacity, which on a phone previewing
+  at ~360px rendered around 10 CSS pixels of knocked-back type over a busy
+  background. Unreadable. Now 40px at full opacity, and the title plate covers
+  the caption as well — same `TitlePlate` object, so the two pieces of type
+  cannot drift apart in colour or corner radius.
+
+  The plate's padding then pushed the last row about 2px into the handle on the
+  square grids, so `layoutGrid` derives its bottom floor from what is actually
+  printed at the bottom rather than a fixed 150. `GRID_TO_CAPTION_GAP` is 64
+  rather than the 24 that technically cleared — a hairline between covers and
+  handle reads as a collision whatever the arithmetic says. Costs about 3% of
+  slot width on 2x2, 3x3 and 4x4; the wider shapes are untouched.
+
+  **Noted while checking it, not addressed:** there is more space above the
+  title than the design needs. `titleTop` is 132 and the title band sits at the
+  top of a 1920px frame, so a poster with a short title reads as slightly
+  bottom-heavy. Fine as it stands, and worth a look during any layout work —
+  particularly 1.4, which rebuilds the geometry anyway.
