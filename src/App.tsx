@@ -7,9 +7,11 @@ import { SlotEditor } from './components/controls/SlotEditor'
 import { BookList } from './components/controls/BookList'
 import { PostersPanel } from './components/controls/PostersPanel'
 import { ExportSheet, type ExportIntent } from './components/controls/ExportSheet'
+import { StatsPanel } from './components/stats/StatsPanel'
 import { Wordmark } from './components/chrome/Wordmark'
 import { ThemeToggle } from './components/chrome/ThemeToggle'
 import { AboutPanel } from './components/chrome/AboutPanel'
+import { MoreSheet } from './components/chrome/MoreSheet'
 import { UpdateBanner } from './components/chrome/UpdateBanner'
 import { BottomBar, type PanelKind } from './components/chrome/BottomBar'
 import { useBoard } from './hooks/useBoard'
@@ -55,6 +57,27 @@ import styles from './App.module.css'
  * anchored differently.
  */
 
+/**
+ * Drawer headings by panel.
+ *
+ * A map rather than the chain of ternaries this used to be: at five panels that
+ * was already hard to read, and `Record<PanelKind, string>` means adding a panel
+ * fails to compile until it has a title, which a ternary chain would have let
+ * fall through to an empty heading.
+ *
+ * The slot editor is the one exception and stays inline, since its heading
+ * carries the slot number rather than being a constant.
+ */
+const PANEL_TITLES: Record<PanelKind, string> = {
+  design: 'Design',
+  import: 'Import from Goodreads',
+  about: 'About',
+  books: 'Books on this poster',
+  posters: 'Posters',
+  stats: 'Reading stats',
+  slot: '',
+}
+
 export default function App() {
   const { preference, resolved, cycle } = useTheme()
   const {
@@ -78,6 +101,7 @@ export default function App() {
   const [activeSlot, setActiveSlot] = useState<number | undefined>()
   const [isExporting, setIsExporting] = useState(false)
   const [isExportOpen, setIsExportOpen] = useState(false)
+  const [isMoreOpen, setIsMoreOpen] = useState(false)
   /** Which export is in flight, so the sheet can say which row is working. */
   const [exporting, setExporting] = useState<ExportIntent | undefined>()
   /**
@@ -239,6 +263,31 @@ export default function App() {
   }, [])
 
   /**
+   * A choice from the More sheet. The sheet closes as the drawer opens — leaving
+   * a modal stacked over the drawer it just opened would need two dismissals to
+   * get back to the poster.
+   */
+  const handleSelectMore = useCallback((next: PanelKind) => {
+    setIsMoreOpen(false)
+    setPanel(next)
+  }, [])
+
+  /**
+   * Tapping a bar on the stats timeline opens that month's poster.
+   *
+   * This is what makes the chart a way to get somewhere rather than an
+   * ornament — the bars are months, and a month is a poster. The drawer closes
+   * with it, since the poster it switched to is the thing being asked for.
+   */
+  const handleOpenMonthPoster = useCallback(
+    (boardId: string) => {
+      void switchBoard(boardId)
+      setPanel(undefined)
+    },
+    [switchBoard],
+  )
+
+  /**
    * Mark the poster's favourite from the book list. The panel stays open — the
    * mark lands on the poster behind the drawer, and the star in the row is the
    * confirmation that it worked.
@@ -386,6 +435,7 @@ export default function App() {
             activePanel={panel}
             onOpenPanel={setPanel}
             onExport={() => setIsExportOpen(true)}
+            onOpenMore={() => setIsMoreOpen(true)}
             isExporting={isExporting}
           />
 
@@ -398,19 +448,13 @@ export default function App() {
             placement="bottom"
             height="82vh"
             title={
-              panel === 'design'
-                ? 'Design'
-                : panel === 'import'
-                  ? 'Import from Goodreads'
-                  : panel === 'about'
-                    ? 'About'
-                    : panel === 'books'
-                      ? 'Books on this poster'
-                      : panel === 'posters'
-                        ? 'Posters'
-                        : activeSlot !== undefined
-                          ? `Slot ${activeSlot + 1}`
-                          : ''
+              panel === 'slot'
+                ? activeSlot !== undefined
+                  ? `Slot ${activeSlot + 1}`
+                  : ''
+                : panel
+                  ? PANEL_TITLES[panel]
+                  : ''
             }
             styles={{ body: { paddingTop: 12 } }}
           >
@@ -425,6 +469,14 @@ export default function App() {
               />
             )}
             {panel === 'about' && <AboutPanel onRestored={() => void refreshBoards()} />}
+            {panel === 'stats' && (
+              <StatsPanel
+                boards={boards}
+                onOpenMonth={handleOpenMonthPoster}
+                onImport={() => setPanel('import')}
+                onOpenBooks={() => setPanel('books')}
+              />
+            )}
             {panel === 'books' && board && (
               <BookList
                 board={board}
@@ -459,6 +511,12 @@ export default function App() {
               />
             )}
           </Drawer>
+
+          <MoreSheet
+            open={isMoreOpen}
+            onSelect={handleSelectMore}
+            onCancel={() => setIsMoreOpen(false)}
+          />
 
           <ExportSheet
             open={isExportOpen}

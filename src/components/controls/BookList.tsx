@@ -110,19 +110,30 @@ export function BookList({
                     {book.author}
                   </span>
 
-                  {(book.rating !== undefined || finished) && (
-                    <span className={styles.detail} style={{ color: color.inkFaint }}>
-                      {book.rating !== undefined && (
-                        <span
-                          className={styles.rating}
-                          aria-label={`Rated ${book.rating} out of 5`}
-                        >
-                          {ratingStars(book.rating)}
-                        </span>
-                      )}
-                      {finished && <span className={styles.finished}>{finished}</span>}
-                    </span>
-                  )}
+                  <span className={styles.detail} style={{ color: color.inkFaint }}>
+                    {book.rating !== undefined && (
+                      <span
+                        className={styles.rating}
+                        aria-label={`Rated ${book.rating} out of 5`}
+                      >
+                        {ratingStars(book.rating)}
+                      </span>
+                    )}
+                    {/*
+                      A missing finish date is marked rather than left blank.
+                      An undated row used to be indistinguishable from a dated
+                      one at a glance, which meant the only way to find the books
+                      keeping themselves off the stats charts was to open every
+                      book in turn. Set in the faint ink and in words, so it
+                      reads as a blank waiting to be filled rather than as a
+                      warning about the book.
+                    */}
+                    {finished ? (
+                      <span className={styles.finished}>{finished}</span>
+                    ) : (
+                      <span className={styles.undated}>No date</span>
+                    )}
+                  </span>
                 </span>
               </button>
 

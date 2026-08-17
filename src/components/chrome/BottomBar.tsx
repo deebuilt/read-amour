@@ -2,9 +2,9 @@ import type { ReactNode } from 'react'
 import {
   AppstoreOutlined,
   BgColorsOutlined,
+  EllipsisOutlined,
   ExportOutlined,
   ReadOutlined,
-  UploadOutlined,
 } from '@ant-design/icons'
 import styles from './BottomBar.module.css'
 
@@ -31,6 +31,11 @@ import styles from './BottomBar.module.css'
  * before in both directions; the sheet it opens has been `ExportSheet` the
  * whole time, which was the answer.
  *
+ * The last slot is More, which took Import's place once there were three things
+ * to put behind it. Both of the items that open a sheet rather than a panel keep
+ * the same stacked shape as the three that do — a nav where two items looked
+ * different would stop reading as one row.
+ *
  * Not antd Buttons: a Button owns its own inner layout, and stacking a glyph
  * over a label inside one means fighting `.ant-btn` for control of flex
  * direction, height, and padding. A plain button element is less code and the
@@ -41,11 +46,23 @@ import styles from './BottomBar.module.css'
  * permanently, which is what a tooltip was approximating.
  */
 
-export type PanelKind = 'design' | 'import' | 'slot' | 'about' | 'books' | 'posters'
+export type PanelKind =
+  | 'design'
+  | 'import'
+  | 'slot'
+  | 'about'
+  | 'books'
+  | 'posters'
+  | 'stats'
 
-/** Every destination in the bar, including Save — which is an action, not a
- *  panel, and so is identified separately rather than by `PanelKind`. */
-type BarItemKey = PanelKind | 'export'
+/**
+ * Every destination in the bar.
+ *
+ * Export and More are actions rather than panels — one opens a choice of four
+ * exports, the other opens a choice of three panels — so both are identified
+ * separately instead of by `PanelKind`.
+ */
+type BarItemKey = PanelKind | 'export' | 'more'
 
 interface BarItem {
   key: BarItemKey
@@ -54,17 +71,30 @@ interface BarItem {
 }
 
 /**
- * Left to right, with Save centred. The order is by how often each is reached
- * for, working outward from the middle: Save is what the poster is for, and
- * everything either side is a way to change what gets saved.
+ * Left to right, with Export centred. The order is by how often each is reached
+ * for, working outward from the middle: Export is what the poster is for, and
+ * everything either side is a way to change what gets exported.
+ *
+ * More replaced Import in the last slot. Import is the one thing that had been
+ * in the bar with an end to it — a Goodreads CSV comes across once and then the
+ * button sits there for the life of the app — while what it makes room for is
+ * three destinations, one of which (Stats) is a place to come back to. See
+ * `MoreSheet` for why this was worth doing only once Stats existed.
  */
 const ITEMS: readonly BarItem[] = [
   { key: 'posters', label: 'Posters', icon: <AppstoreOutlined /> },
   { key: 'books', label: 'Books', icon: <ReadOutlined /> },
   { key: 'export', label: 'Export', icon: <ExportOutlined /> },
   { key: 'design', label: 'Design', icon: <BgColorsOutlined /> },
-  { key: 'import', label: 'Import', icon: <UploadOutlined /> },
+  { key: 'more', label: 'More', icon: <EllipsisOutlined /> },
 ]
+
+/**
+ * The panels that live behind More, so the bar can mark that item active while
+ * one of them is open. Without this, opening Stats would leave every item in the
+ * bar unmarked and the drawer would look like it belonged to nothing.
+ */
+const MORE_PANELS: ReadonlySet<PanelKind> = new Set<PanelKind>(['stats', 'import', 'about'])
 
 interface BottomBarProps {
   /** The panel currently open, so the bar can mark it. `undefined` when the
@@ -72,6 +102,7 @@ interface BottomBarProps {
   activePanel: PanelKind | undefined
   onOpenPanel: (panel: PanelKind) => void
   onExport: () => void
+  onOpenMore: () => void
   isExporting: boolean
 }
 
@@ -79,13 +110,19 @@ export function BottomBar({
   activePanel,
   onOpenPanel,
   onExport,
+  onOpenMore,
   isExporting,
 }: BottomBarProps) {
   return (
     <nav className={styles.bar}>
       {ITEMS.map((item) => {
         const isExport = item.key === 'export'
-        const isActive = !isExport && item.key === activePanel
+        const isMore = item.key === 'more'
+        // More marks itself for any of the panels it holds, so the bar always
+        // says where the open drawer came from.
+        const isActive = isMore
+          ? activePanel !== undefined && MORE_PANELS.has(activePanel)
+          : !isExport && item.key === activePanel
 
         return (
           <button
@@ -94,11 +131,21 @@ export function BottomBar({
             /* `aria-current` rather than `aria-pressed`: these are
                destinations, and only one is open at a time. */
             aria-current={isActive ? 'page' : undefined}
-            aria-label={isExport ? 'Export this poster: save or share' : undefined}
+            aria-label={
+              isExport
+                ? 'Export this poster: save or share'
+                : isMore
+                  ? 'More: reading stats, import, and about'
+                  : undefined
+            }
             /* An export takes a visible moment. Blocking the second tap is
                what stops two captures racing each other. */
             disabled={isExport && isExporting}
-            onClick={() => (isExport ? onExport() : onOpenPanel(item.key as PanelKind))}
+            onClick={() => {
+              if (isExport) onExport()
+              else if (isMore) onOpenMore()
+              else onOpenPanel(item.key as PanelKind)
+            }}
             className={[
               styles.item,
               isExport ? styles.exportItem : '',

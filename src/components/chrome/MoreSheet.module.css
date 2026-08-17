@@ -1,0 +1,54 @@
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-block: 4px;
+}
+
+/* The same bordered row as `ExportSheet`, so the two sheets read as one app. */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 13px 14px;
+  border: 1px solid var(--ra-line);
+  border-radius: 8px;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.row:hover {
+  background: var(--ra-paper-raised);
+  border-color: var(--ra-line-strong);
+}
+
+.icon {
+  flex: none;
+  font-size: 18px;
+  color: var(--ra-ink-soft);
+}
+
+/* `min-width: 0` so a long description ellipsises rather than widening the row
+   past the modal — the same trap as every other flex item holding text. */
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.label {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ra-ink);
+}
+
+.description {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ra-ink-faint);
+}

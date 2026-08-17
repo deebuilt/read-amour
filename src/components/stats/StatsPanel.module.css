@@ -1,0 +1,159 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding-bottom: 24px;
+}
+
+.loading {
+  display: grid;
+  place-items: center;
+  padding-block: 48px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/*
+ * Matches the design drawer's section headings rather than inventing a third
+ * scale — the two panels sit behind the same drawer and should read as one app.
+ */
+.heading {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ra-ink);
+}
+
+/*
+ * The numbers, as a definition list rather than a card grid.
+ *
+ * A three-up row of stat cards is the single clearest AI tell in the global
+ * visual rules, and a dashboard is where the pull toward it is strongest. This
+ * is the alternative that rule points at: one number per row, label on the left,
+ * figure on the right, separated by rules. The hierarchy comes from the size
+ * difference between the two, which is all the design a number needs.
+ */
+.numbers {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+}
+
+.numberRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding-block: 10px;
+  border-bottom: 1px solid var(--ra-line);
+}
+
+.numberRow:last-child {
+  border-bottom: none;
+}
+
+.numberLabel {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.3;
+  color: var(--ra-ink-soft);
+}
+
+/*
+ * Fraunces, the poster's own editorial serif, at a size nothing else in the
+ * chrome uses. It is the one place the app's display face appears outside the
+ * artwork, which is what makes a dashboard of otherwise plain rows feel like
+ * part of Read Amour rather than a settings screen.
+ *
+ * `tabular-nums` so the figures align down the right edge instead of shifting
+ * with the width of each digit.
+ *
+ * Right-aligned with a `min-width: 0` guard: a long value ("September 2026 · 9")
+ * has to be able to shrink and wrap rather than push the label off the row.
+ */
+.numberValue {
+  margin: 0;
+  min-width: 0;
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 20px;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--ra-ink);
+}
+
+/*
+ * Observations are prose, so they are set as prose — no bullets, no icons, and
+ * no card. Each sits on its own with a hairline above it, which separates them
+ * without making them look like list items in a feature grid.
+ */
+.observations {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.observation {
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ra-ink);
+  padding-left: 12px;
+  border-left: 2px solid var(--ra-accent);
+}
+
+/*
+ * Back out of the undated list. Aligned hard left and pulled tight to the
+ * drawer's own padding, so it reads as a way back rather than as a button that
+ * does something to the content underneath it.
+ */
+.back {
+  align-self: flex-start;
+  margin-left: -8px;
+  color: var(--ra-ink-soft);
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-block: 32px;
+}
+
+.emptyLead {
+  margin: 0;
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 21px;
+  line-height: 1.3;
+  color: var(--ra-ink);
+}
+
+.emptyBody {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ra-ink-soft);
+}
+
+/*
+ * A button that reads as a link. It has to be a button — it moves the reader to
+ * another panel rather than to a URL, and an anchor with no href is not
+ * focusable or operable by keyboard.
+ */
+.link {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--ra-accent);
+  text-decoration: underline;
+  cursor: pointer;
+}

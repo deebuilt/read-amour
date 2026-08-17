@@ -1,0 +1,108 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/*
+ * Three columns: the star label at its natural width, the track taking whatever
+ * is left, and the count in a fixed gutter. The count column is fixed so the
+ * numbers line up down the right edge — with `auto` a three-digit count would
+ * shove that row's track shorter than the others and the bars would no longer
+ * share a scale.
+ */
+.row {
+  display: grid;
+  grid-template-columns: auto 1fr 28px;
+  align-items: center;
+  gap: 10px;
+  min-height: 24px;
+}
+
+/*
+ * Gold, and the only place in the chrome that uses it — matching the rating
+ * stars the poster draws. The favourite crown deliberately avoids this colour
+ * for the collision it would cause; the reverse holds here, where gold is
+ * exactly right because these *are* ratings.
+ *
+ * Fixed width so all five labels occupy the same column and the tracks start at
+ * one left edge rather than stepping in as the stars get fewer.
+ */
+.stars {
+  width: 62px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  color: #c8a44d;
+  white-space: nowrap;
+}
+
+.track {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--ra-line);
+  overflow: hidden;
+}
+
+.bar {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--ra-accent);
+}
+
+/* A rating nobody gave: the track stays, empty, so the scale keeps all five. */
+.barEmpty {
+  display: block;
+  height: 100%;
+  width: 0;
+}
+
+.count {
+  font-size: 13px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--ra-ink-soft);
+}
+
+.footnotes {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mean {
+  font-size: 13px;
+  color: var(--ra-ink-soft);
+}
+
+.note {
+  font-size: 13px;
+  color: var(--ra-ink-faint);
+}
+
+/* The bar chart is visual; a screen reader gets the star count spoken instead. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

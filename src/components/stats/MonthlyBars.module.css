@@ -1,0 +1,128 @@
+/*
+ * Twelve equal columns, like the bottom bar and for the same reason: equal
+ * division is what makes a row of bars read as one chart rather than as twelve
+ * separate objects. `1fr` with `min-width: 0` on the column, since a grid item
+ * defaults to `min-width: auto` and would refuse to shrink below its own
+ * content — the trap already documented for the search results grid.
+ */
+.chart {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  align-items: end;
+  gap: 3px;
+  width: 100%;
+}
+
+.column {
+  display: flex;
+  min-width: 0;
+}
+
+/*
+ * The button and the static span have to lay out identically, or a month with a
+ * poster would sit at a different height from one without and the baseline would
+ * wander across the chart.
+ */
+.columnButton,
+.columnStatic {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.columnButton {
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 120ms ease;
+}
+
+.columnButton:hover {
+  background: var(--ra-accent-soft);
+}
+
+/*
+ * Fixed height so every bar is measured against the same space. Without it the
+ * track would size to its content and the tallest month would define the axis
+ * differently at each render.
+ */
+.track {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 100%;
+  height: 96px;
+}
+
+/*
+ * One hue at two strengths, never a second colour. The accent is the app's, and
+ * a chart that introduces its own palette stops looking like part of the app.
+ */
+.bar {
+  display: block;
+  width: 100%;
+  max-width: 18px;
+  border-radius: 2px 2px 0 0;
+  background: var(--ra-accent);
+}
+
+/* A month with no reading: present, flat, and visibly not a bar. */
+.barEmpty {
+  display: block;
+  width: 100%;
+  max-width: 18px;
+  border-radius: 2px 2px 0 0;
+  background: var(--ra-line-strong);
+}
+
+/*
+ * The count above the bar is the tooltip this chart does not have. 11px, below
+ * the type scale floor, for the same reason the nav labels are — it is
+ * recognised at a glance rather than read, and at body size twelve of them
+ * across a phone would outweigh the bars they annotate.
+ *
+ * The line box is reserved whether or not there is a number in it, so the bars
+ * all start from the same baseline.
+ */
+.count {
+  min-height: 14px;
+  font-size: 11px;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  color: var(--ra-ink-soft);
+}
+
+.tick {
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--ra-ink-faint);
+}
+
+.note {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ra-ink-faint);
+}
+
+/*
+ * A button that reads as a link. It has to be a button — it opens a panel rather
+ * than a URL, and an anchor with no href is neither focusable nor operable by
+ * keyboard.
+ */
+.noteLink {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--ra-accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
