@@ -28,9 +28,9 @@
 }
 
 /*
- * Always open, never behind a caret. The bar collapsed these because it had one
- * line of room; a modal has the space, and a reader who is being interrupted
- * should get the answer rather than another thing to tap.
+ * Always open, never behind a caret. The bar this replaced collapsed them
+ * because it had one line of room; a modal has the space, and a reader who is
+ * being interrupted should get the answer rather than another thing to tap.
  */
 .changes {
   display: flex;
@@ -47,67 +47,4 @@
   color: var(--ra-ink-soft);
   padding-left: 12px;
   border-left: 2px solid var(--ra-line-strong);
-}
-
-/* Bar presentation ---------------------------------------------------------
- *
- * The alternative to the modal, kept behind `PRESENTATION` until Ruthnie has
- * seen both — the bar had never once rendered when its placement was first
- * questioned, so there was nothing to judge. Delete this block and its branch in
- * the component once the choice is made.
- */
-
-.bar {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px 12px;
-  border-top: 1px solid var(--ra-line);
-  background: var(--ra-accent-soft);
-}
-
-.barRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-/*
- * `min-width: 0` so a long headline ellipsises rather than pushing the dismiss
- * button off the row — the button is the way out and must never be squeezed.
- */
-.barSummary {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  padding: 0;
-  border: none;
-  background: none;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.barText {
-  font-size: 13px;
-  color: var(--ra-ink);
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.caret {
-  flex: none;
-  font-size: 10px;
-  color: var(--ra-ink-faint);
-  transition: transform 120ms ease;
-}
-
-.caretOpen {
-  transform: rotate(90deg);
 }

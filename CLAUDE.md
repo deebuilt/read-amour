@@ -835,6 +835,24 @@ however the build arrived — worker update, hard refresh, cleared cache, new
 device. Everything that broke here before broke inside SW event plumbing;
 nothing about the note depends on it now.
 
+**Asking whether there is news and recording that it was seen are separate
+calls, and merging them is a bug.** The first version did both in one
+`claimVersionAsSeen()` on mount — and since the update arrives *by reloading the
+page*, the new build mounted, marked its own version seen, and consumed the news
+before rendering a pixel of it. The app flickered and said nothing. So
+`isVersionNews()` only asks, and `markVersionSeen()` runs on dismissal; a reader
+who closes the app without dismissing sees it again, which is the correct
+direction to fail in. `seedVersionIfNew()` records a first launch without showing
+anything, or the *next* update would find no baseline and stay silent too.
+
+**It is a centred modal, and that was decided by looking rather than arguing.**
+It began as a bar above the bottom nav, which never once rendered because of the
+bug above — so when the placement was first questioned there was nothing to judge.
+Both were built behind a constant rather than swapping one unseen design for
+another, the modal was seen working, and the bar was then deleted with its
+styles. An update is a once-per-release event a reader cannot act on anywhere
+else, so it earns the interruption.
+
 **`autoUpdate`'s one cost is paid by deferring the reload.** A page that reloads
 under someone placing covers is hostile even though posters save continuously.
 `WhatsNewNote` waits for `visibilitychange` → hidden before reloading, so the

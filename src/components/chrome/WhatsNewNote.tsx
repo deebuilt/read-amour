@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { Button, Modal, Typography } from 'antd'
-import { RightOutlined } from '@ant-design/icons'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import { APP_VERSION, currentRelease } from '../../design/releases'
 import {
@@ -62,29 +61,21 @@ import styles from './WhatsNewNote.module.css'
  * reader who never backgrounds the app gets it on their next cold start, which
  * is what would have happened anyway.
  *
- * ## Bar or modal — `PRESENTATION`, and why it is a switch rather than a choice
+ * ## Why a modal rather than a bar
  *
  * The note began as a bar above the bottom nav, in the slot the old Reload
- * button had used. It never once appeared, because of the mount-time bug
- * described on `isVersionNews` — so when the placement was questioned, **nobody
- * had actually seen it**. Ruthnie: *"It's one thing if the bar actually worked.
- * It's not like I wanna take up so much space, but I just didn't know what it
- * looked like to even know if I like the design."*
+ * button had used, and it was briefly built both ways behind a switch — because
+ * the bar had never once rendered when its placement was first questioned, so
+ * there was nothing to judge it on. Swapping one unevaluated design for another
+ * is guessing twice.
  *
- * Swapping a design nobody has evaluated for another one nobody has evaluated is
- * guessing twice. Both are built, the constant below picks one, and the decision
- * waits until there is something to look at. They are genuinely different
- * trade-offs rather than a cosmetic pair:
- *
- *   'bar'   — quiet, never covers the poster, easy to miss at the screen edge.
- *   'modal' — impossible to miss, costs an interruption and a dismissal.
- *
- * Whichever loses should be deleted along with its styles once the call is made.
- * Keeping both indefinitely is how a component grows a mode nobody chose.
+ * Both were shipped, the modal was seen working, and it won: an update is a
+ * once-per-release event a reader cannot act on anywhere else, so it earns the
+ * interruption, and the bottom edge of a poster-first screen is exactly where a
+ * quiet bar goes unread. The bar branch and its styles were then deleted rather
+ * than left behind a constant — that is how a component grows a mode nobody
+ * chose.
  */
-
-/** Which presentation the note uses. See the note above before changing it. */
-const PRESENTATION: 'bar' | 'modal' = 'modal'
 
 export function WhatsNewNote() {
   /**
@@ -151,8 +142,6 @@ export function WhatsNewNote() {
    */
   const [isNews, setIsNews] = useState(() => isVersionNews(APP_VERSION))
 
-  /** Bar only — the modal shows its changes open, so it has nothing to toggle. */
-  const [isBarOpen, setIsBarOpen] = useState(false)
 
   /**
    * Lay down a baseline for a first-time reader.
@@ -197,49 +186,6 @@ export function WhatsNewNote() {
   }
 
   if (!isNews || !hasNotes) return null
-
-  if (PRESENTATION === 'bar') {
-    return (
-      /*
-       * A bar above the action bar, in the shell's flex flow rather than
-       * floating over it — so it pushes the layout by its own height instead of
-       * covering the poster.
-       *
-       * `role="status"`: worth announcing once to a screen reader, not worth
-       * seizing focus over. The modal below is the opposite trade on purpose.
-       */
-      <div className={styles.bar} role="status">
-        <div className={styles.barRow}>
-          <button
-            type="button"
-            className={styles.barSummary}
-            onClick={() => setIsBarOpen((open) => !open)}
-            aria-expanded={isBarOpen}
-          >
-            <Typography.Text className={styles.barText}>{release.headline}</Typography.Text>
-            <RightOutlined
-              className={isBarOpen ? `${styles.caret} ${styles.caretOpen}` : styles.caret}
-              aria-hidden
-            />
-          </button>
-
-          <Button size="small" type="text" onClick={dismiss}>
-            Got it
-          </Button>
-        </div>
-
-        {isBarOpen && (
-          <ul className={styles.changes}>
-            {release.changes.map((change) => (
-              <li key={change} className={styles.change}>
-                {change}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    )
-  }
 
   return (
     /*

@@ -54,28 +54,6 @@ export interface Release {
 }
 
 export const RELEASES: readonly Release[] = [
-  /*
-   * TEMPORARY — DELETE THIS ENTRY IN THE NEXT SESSION.
-   *
-   * 0.4.4 fixes a bug in the what's-new note itself, which is not a feature and
-   * is not something a reader cares about. It has an entry only because the note
-   * cannot be seen working without one, and it had never been seen working: the
-   * version before this consumed its own news on mount and rendered nothing.
-   *
-   * So this exists to be looked at once and removed. Delete the entry, leave the
-   * version bump, and 0.4.4 becomes what it should be — an invisible fix, which
-   * is exactly what the "skip anything with no visible effect" rule below calls
-   * for.
-   */
-  {
-    version: '0.4.4',
-    date: '2026-08-17',
-    changes: [
-      'This message is the fix — it was supposed to appear when the last update landed, and did not.',
-      'Everything else is unchanged.',
-    ],
-    headline: 'Testing this message.',
-  },
   {
     version: '0.4.3',
     date: '2026-08-17',

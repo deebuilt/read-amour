@@ -232,3 +232,43 @@ ships a visible change and forgets its entry ships it silently. Noted in
 The full sequence has never been watched end to end, because it needs two
 deploys: one to ship this mechanism, and a later one for it to report on. Every
 attempt so far has been blocked by the previous design's broken Reload.
+
+### Verified working 2026-08-17, after two more bugs
+
+The mechanism above shipped and **did not appear.** Two faults, found by Ruthnie
+testing on her phone.
+
+**1. The note consumed its own news on mount.** `claimVersionAsSeen()` asked and
+recorded in one call, run on mount — and the update arrives *by reloading the
+page*, so the new build mounted, marked its version seen, and spent the news
+before rendering it. Her words: *"I just saw my app kinda flicker, and that was
+where the update landed with no note."* The notes were sitting in What's new,
+already considered delivered.
+
+Fixed by splitting the API: `isVersionNews()` asks without writing,
+`markVersionSeen()` runs on dismissal, `seedVersionIfNew()` lays a baseline for a
+first launch. Failing now means showing the note *again*, which is the right
+direction.
+
+**2. A bar at the bottom edge was the wrong surface anyway.** *"I didn't want a
+note at the bottom. I wanted a modal, a pop up, something in the center where I
+can just dismiss it."*
+
+Both were built behind a `PRESENTATION` constant rather than swapping one
+unevaluated design for another — the bar had never rendered, so nobody had seen
+it to judge it. The modal was shipped, confirmed, and the bar deleted with its
+styles.
+
+**Confirmed end to end** on 0.4.4: app fully closed, reopened, modal appeared
+with the headline and both changes, dismissed with Got it, and — checked
+deliberately — **did not reappear** on the next launch.
+
+**The 0.4.4 entry was temporary and is now deleted**, which is the point worth
+keeping. It described a bug fix rather than a feature, and existed only because
+the note could not be seen working without an entry to show. 0.4.5 removes it and
+ships silently, which is what the rule in `releases.ts` asks for: a build with
+nothing a reader can see gets no entry, and the note stays quiet.
+
+That silent path is exercised by this very release — 0.4.5 has no entry, so it
+lands with no modal while still recording itself, leaving the next real feature
+free to announce itself correctly.
