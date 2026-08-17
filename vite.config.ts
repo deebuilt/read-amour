@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import { readFileSync } from 'node:fs'
 
 /*
  * Served from the root of its own domain — readamour.com.
@@ -16,8 +17,26 @@ import { VitePWA } from 'vite-plugin-pwa'
  */
 const BASE = '/'
 
+/*
+ * The version the running app reports, read from package.json at build time.
+ *
+ * Read here rather than imported, because importing package.json into the
+ * bundle would pull the whole file — dependency list included — into the
+ * shipped JavaScript. This takes the one field and bakes it in as a literal.
+ *
+ * It has to be baked rather than fetched. The service worker caches the app
+ * shell, so anything fetched at runtime is subject to that cache and could
+ * report a version other than the one actually running — which is precisely the
+ * question this exists to answer. In the bundle it cannot disagree with the code
+ * it ships beside.
+ */
+const APP_VERSION = JSON.parse(readFileSync('./package.json', 'utf-8')).version as string
+
 export default defineConfig({
   base: BASE,
+  define: {
+    __APP_VERSION__: JSON.stringify(APP_VERSION),
+  },
   server: {
     port: 8204,
     strictPort: true,

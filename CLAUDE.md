@@ -742,6 +742,39 @@ About. Demoting a frequent action behind a tap to make room for features that do
 not exist yet is a straight downgrade. Build Stats first; then the menu has
 contents and the nav change has a reason. See `docs/STATS.md`.
 
+## Every reader-visible change updates the release notes
+
+A PWA has no App Store listing, so the app is the only place that can tell a
+reader what changed. `src/design/releases.ts` is that record, and keeping it
+current is part of shipping rather than a separate chore.
+
+**The rule: if a change is visible to a reader, it gets a line in `RELEASES`
+before the commit that ships it.** That is in addition to the commit message,
+not instead of it — the two are written for different people. A commit subject
+is for the repo ("Give the bottom bar its labels back, and call export export");
+a release note is for someone holding a phone ("You can see what each button
+does").
+
+**The exception is the important half of the rule: a build with no visible
+change gets no entry.** Refactors, dependency bumps, comment passes, and
+internal repairs are invisible by definition, and listing them trains people to
+stop reading the notes. `UpdateBanner` falls back to "A new version is ready"
+when a version has no entry, and that fallback is the honest outcome for an
+internal release — not a gap to be filled.
+
+The release ritual, in full:
+
+1. Bump `version` in `package.json` — minor for features, patch for fixes.
+2. Add the entry to `RELEASES`, newest first, with the same version string.
+3. Commit, push, and confirm the deploy landed.
+
+`__APP_VERSION__` is baked in from `package.json` by Vite's `define`, so the
+version in a release entry must match it exactly — the running app finds its own
+notes by that string, and a mismatch means the banner silently shows nothing.
+
+Write the notes against `VOICE.md`. One sentence per change, saying what the
+reader can now do; no version-number theatre; never a rule-of-three list.
+
 ## What to build next
 
 `docs/NEXT_LEVEL.md` holds the plan for where the poster goes from here, in

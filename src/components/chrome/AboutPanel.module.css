@@ -55,3 +55,11 @@
   color: var(--ra-ink-faint);
   white-space: nowrap;
 }
+
+/* Set apart at the foot, quiet enough not to compete with the panel's content
+   but findable by anyone who has gone looking for it. */
+.version {
+  font-size: 12px;
+  color: var(--ra-ink-faint);
+  padding-top: 4px;
+}

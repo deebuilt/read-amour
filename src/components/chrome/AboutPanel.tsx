@@ -1,6 +1,8 @@
 import { Typography } from 'antd'
 import { CREDITS } from '../../design/credits'
+import { APP_VERSION } from '../../design/releases'
 import { BackupControls } from '../controls/BackupControls'
+import { ReleaseNotes } from './ReleaseNotes'
 import styles from './AboutPanel.module.css'
 
 /**
@@ -39,6 +41,14 @@ export function AboutPanel({ onRestored }: AboutPanelProps) {
         <BackupControls onRestored={onRestored} />
       </section>
 
+      {/* Sits above the credits because it is the part of this panel worth
+          returning to — the credits are the longest thing here and the least
+          often read. */}
+      <section className={styles.section}>
+        <Typography.Text className={styles.label}>What's new</Typography.Text>
+        <ReleaseNotes />
+      </section>
+
       <section className={styles.section}>
         <Typography.Text className={styles.label}>Book covers</Typography.Text>
         <Typography.Paragraph className={styles.body}>
@@ -69,6 +79,11 @@ export function AboutPanel({ onRestored }: AboutPanelProps) {
           </ul>
         </section>
       )}
+
+      {/* The one place the running build names itself. Useful precisely when
+          something looks wrong — "which version am I on" is unanswerable from
+          the outside on an installed PWA, where there is no address bar. */}
+      <Typography.Text className={styles.version}>Version {APP_VERSION}</Typography.Text>
     </div>
   )
 }

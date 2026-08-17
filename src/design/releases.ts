@@ -1,0 +1,83 @@
+/**
+ * What changed, in each version, written for the reader.
+ *
+ * Data, so it sits with the other content constants rather than in a component.
+ *
+ * ## Why this is a typed array and not a fetched file
+ *
+ * The service worker caches the app shell. A fetched `notes.json` would be
+ * subject to that cache and could serve stale notes describing the very build
+ * that just installed — the one thing these notes exist to describe correctly.
+ * Sitting in the bundle they cannot disagree with the code they ship beside.
+ *
+ * A GitHub Release was considered and is the wrong surface for the same reason
+ * doubled: it is fetched, it needs the network in an app built to work offline,
+ * and it is read on github.com by developers. The reader here is on a phone at
+ * readamour.com and will never see it.
+ *
+ * ## Writing an entry
+ *
+ * Read `VOICE.md` first. These are the most human-facing strings in the app —
+ * short, read by everyone who updates, and the exact place a generic tone shows.
+ *
+ * - **One sentence per change, saying what the reader can now do.** Not what was
+ *   refactored. "The bottom bar has labels" is chrome talk; "You can see what
+ *   each button does" is the change.
+ * - **Skip anything with no visible effect.** A build of internal work gets no
+ *   entry at all, and `UpdateBanner` falls back to "A new version is ready."
+ *   That fallback is the honest outcome, not a failure — a padded list of
+ *   refactors teaches people to stop reading these.
+ * - **No version-number theatre.** No "v0.4.0 — Q3 Release". A date and the
+ *   changes.
+ * - **Never a rule-of-three list.** Two changes, or five. Whatever shipped.
+ *
+ * Newest first. The `version` must match `package.json` for that release, since
+ * that is the string the running app compares against.
+ */
+
+export interface Release {
+  /** Matches `package.json` at the time of the release. */
+  version: string
+  /** ISO date, `YYYY-MM-DD`. */
+  date: string
+  /**
+   * One or two sentences, reader-facing. Shown in the update banner, so it is
+   * the only thing most readers will ever see about a release.
+   */
+  headline: string
+  changes: string[]
+}
+
+export const RELEASES: readonly Release[] = [
+  {
+    version: '0.3.0',
+    date: '2026-08-17',
+    headline: 'Your reading, counted.',
+    changes: [
+      'Reading stats, under More: how many books a month, how you rate them, and a few things your library says about you.',
+      'A finish date is what puts a book on those charts, so there is now one place to add every date you are missing.',
+      'The book list marks which books have no date yet.',
+      'Import and About moved into More, alongside the stats.',
+    ],
+  },
+] as const
+
+/** The version this build is running, baked in from `package.json`. */
+export const APP_VERSION: string = __APP_VERSION__
+
+/**
+ * Notes for a version, or `undefined` when that build shipped nothing worth
+ * telling the reader about.
+ *
+ * The absence is meaningful and callers must handle it: an internal-only release
+ * has no entry here, and the banner falls back to naming no change rather than
+ * inventing one.
+ */
+export function releaseFor(version: string): Release | undefined {
+  return RELEASES.find((release) => release.version === version)
+}
+
+/** The notes for the build currently running. */
+export function currentRelease(): Release | undefined {
+  return releaseFor(APP_VERSION)
+}
