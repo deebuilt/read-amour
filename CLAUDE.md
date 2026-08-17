@@ -4,8 +4,11 @@ A personal project of Ruthnie's (DeeBuilt). Built for her sister, who makes
 monthly reading posters by hand: screenshot a cover, drag it onto a borrowed
 Instagram template, export, repeat. This app collapses that to search-and-tap.
 
-Dev server: **port 8204**. Deployed to GitHub Pages at
-`deebuilt.github.io/read-amour/`.
+Dev server: **port 8204**. Served from GitHub Pages at **readamour.com** since
+2026-08-15 — an apex domain, from the root. It was at
+`deebuilt.github.io/read-amour/` before that, and that URL is dead: the base
+path moved with the domain, so the old route serves a blank page. See "The app
+has its own domain" below before touching `base` or `CNAME`.
 
 ## The one rule that shapes everything
 
@@ -621,6 +624,124 @@ of a bleed layout — but note that `supportsCoverBleed` is derived from the 9:1
 frame, so **2.2 (other frames) would have to re-derive it** along with the grid
 catalogue.
 
+## The app has its own domain, and the library can leave the device
+
+Read Amour is served from **readamour.com**, an apex domain, since 2026-08-15.
+It was at `deebuilt.github.io/read-amour/` before that.
+
+`base` in `vite.config.ts` is a single constant, `/`. It is not only the asset
+prefix — the PWA `start_url`, `scope`, and all three icon paths are built from
+it, so moving the app again means changing that line and nothing else. The old
+`NODE_ENV` branch is gone; dev already served from root.
+
+**`CNAME` lives in `public/`, not the repo root.** The workflow publishes `dist`
+as the entire site and Vite copies `public/` into it verbatim. Setting the
+domain through the Pages settings UI writes `CNAME` to the repo root, where the
+workflow never sees it — the next deploy would ship a site with no `CNAME`, and
+GitHub clears the custom domain when a deploy arrives without one. The domain
+would silently drop on every push. Do not "tidy" that file to the root.
+
+For the record, since it is the kind of thing that gets re-litigated: an apex
+domain on GitHub Pages uses four A records at `185.199.108–111.153`, all four,
+proxy **off**. Those are platform-wide anycast addresses rather than per-site
+allocations, which is why they can be known in advance — verify with
+`nslookup deebuilt.github.io`. Cloudflare's orange-cloud proxy in front of Pages
+breaks the certificate handshake; SSL/TLS mode must be Full, never Flexible.
+
+### Why the backup exists
+
+**IndexedDB is partitioned by origin and there is no exception to that.** A
+domain move does not carry the data — a reader arrives at the new address to an
+empty app while their whole library sits intact and unreachable under the old
+origin. Nothing is deleted; it is stranded, and the only way off an origin is a
+file the user carries by hand.
+
+So `storage/backup.ts` writes the whole library — boards, books, and cover blobs
+as base64 — to one JSON file, and reads one back. It was built as a migration
+tool and the migration is done. What outlives it is the second job: a reading
+history held only in a browser database is one cleared cache from being gone,
+and this app has no server to recover it from.
+
+Three rules it must keep:
+
+- **Restore merges, never replaces.** Books go through `saveBooks`, inheriting
+  the field-by-field merge that stops a re-dropped CSV from stripping resolved
+  covers. Posters already present are kept and reported as skipped. Restoring
+  the same file twice is a no-op rather than a duplicate library. A restore that
+  cleared storage first would turn one mis-picked file into exactly the loss the
+  feature exists to prevent.
+- **Order is images, then books, then boards.** Every record is written after
+  the thing it points at, so an interrupted restore leaves covers with no book —
+  which the orphan sweep already protects — rather than books pointing at covers
+  that never arrived.
+- **Boards restore through `putBoardVerbatim`, not `saveBoard`.** `saveBoard`
+  stamps `updatedAt` with the current time, which is right for an edit and wrong
+  for a restore: it would re-date a whole library to the moment the file was
+  read, destroying the only record of when each poster was last worked on. The
+  file holds that value and nothing else does.
+
+Proven across three origins on 2026-08-15 — localhost to `deebuilt.github.io`,
+then both to `readamour.com`, on desktop and phone. Two devices that had been
+used separately merged cleanly, keeping the union of both libraries.
+
+## The bottom bar is a nav, and Export is not called Save
+
+Five items across, icon over label, in `components/chrome/BottomBar`. It had
+been two icons, a circular Save, two icons, inline in `App.tsx` and unlabelled —
+with a comment recording that five labelled buttons wrap at 375px.
+
+That was true and it was measuring the wrong arrangement. It is true of labels
+*beside* glyphs, which is what an antd `Button` with `icon` and children gives
+you. It is not true of the stacked arrangement every mobile nav uses. Measured
+in Archivo at 11px, the widest label is **"Posters" at 38.7px** in a 62.4px
+column at 320px — the narrowest phone viewport in use — leaving 23.7px. Nothing
+wraps at any width the app will ever see, and no breakpoint is needed.
+
+Three things hold that up, and all three matter:
+
+- **A grid of five `1fr` columns**, not a flex row. Equal division is what makes
+  it read as a nav rather than five differently-sized blocks, and it centres the
+  middle item by geometry rather than by balancing the side groups.
+- **`min-width: 0` on the item.** Same trap as the search-results grid, one
+  section up: a grid item defaults to `min-width: auto` and refuses to shrink
+  below its contents, so a long label would widen its own track past the `1fr`
+  and the columns would stop being equal.
+- **Plain `button` elements, not antd Buttons.** A Button owns its inner layout,
+  so stacking a glyph over a label means fighting `.ant-btn` for flex direction,
+  height and padding. The hit target is set here regardless.
+
+Labels made an active state necessary. Nothing marked the open panel before,
+which was invisible when every item was a bare glyph and would read as an
+omission now. `aria-current="page"` rather than `aria-pressed`: these are
+destinations and only one is open.
+
+**The centre item is Export, and the label has now been wrong twice in both
+directions.** It was Save, then Download, then Save again. Every version named
+one outcome as though it were all of them, and "Save" additionally promises the
+thing that already happens by itself — posters save continuously to IndexedDB.
+What the button opens is a choice of four: photo or video, to the device or to
+the share sheet. The component it opens has been called `ExportSheet` the whole
+time, which was the answer sitting in the filename.
+
+The rows *inside* the sheet stay "Save photo" and "Save video". There the verb
+genuinely is save-to-device and the contrast being drawn is photo vs. video, so
+`SaveOutlined` is correct there and now means only that. The bar carries
+`ExportOutlined` instead. The floppy disk had been chosen deliberately over a
+download tray, with a note calling it "a slightly odd fit for an app with
+nothing to save" — that oddness was the label's fault and left with it.
+
+Export is a row item rather than the raised circle it replaced. A circle with a
+caption underneath does not read as a nav item, and leaving it uncaptioned
+beside four labels would look like its label had fallen off. It leads on accent
+colour alone, which is enough among four quiet marks.
+
+**A "More" menu was considered and deferred.** The nav will eventually hold
+More, with Import and About tucked inside — but only once there is a second
+thing to put there. Today it would hold Import, which is used constantly, and
+About. Demoting a frequent action behind a tap to make room for features that do
+not exist yet is a straight downgrade. Build Stats first; then the menu has
+contents and the nav change has a reason. See `docs/STATS.md`.
+
 ## What to build next
 
 `docs/NEXT_LEVEL.md` holds the plan for where the poster goes from here, in
@@ -635,6 +756,21 @@ an ISBN, ~13 characters) and are re-fetched on arrival, which puts a 20-book
 poster under 1KB in a URL fragment. Encoding the actual cover blobs would be
 ~410KB against an 8–32KB ceiling, which is where the "this needs a database"
 assumption came from.
+
+`docs/STATS.md` holds the plan for a reading dashboard — books over time,
+rating distribution, a few honest numbers, and plain-language observations.
+Entirely local: every panel computes from `Book` records already in IndexedDB,
+so it ships with no backend and no cost.
+
+Read it before building any of it, chiefly for what it rules out. The schema
+carries a **date, a rating, and an author** and nothing else — no page count, no
+genre, and no start date, which makes reading *duration* unbuildable rather than
+merely hard. It also records why the activity heat map from Ruthnie's Last Time
+app does not port: that app logs hundreds of timestamped events a year, where a
+reader finishes perhaps forty books, so the same grid here is ~330 empty cells
+and reads as an accusation. What ports is that app's honesty rule — every
+generator returns `null` unless the evidence is there, so a thin library gets
+silence rather than a fabricated pattern.
 
 ## Known gaps
 
@@ -660,6 +796,35 @@ alongside it: a summary of which covers failed, rather than silence.
 
 Not urgent. Manual entry with cover upload already covers the case, and the
 Apple fallback has narrowed how often a cover is missing at all.
+
+**3. The About panel, which is now the app's front door and reads like a
+footnote.** Four things, noted 2026-08-15 and deliberately left for a later
+session:
+
+- **A creator credit linking to Ruthnie's own site.** She is writing that site
+  now; the URL does not exist yet, which is the only reason this is not built.
+  It is the link she will attribute the app with, so it wants to be a real
+  credit rather than a line of small print.
+- **The local-only promise deserves better placement.** "Everything stays on
+  this device" is the first thing a reader wonders about a reading app, and it
+  is currently the second paragraph of a panel most people never open. The
+  backup controls now sit directly under it, which is right — the promise raises
+  the question and the answer should be next to it.
+- **Collapsible credits.** The artwork list is the longest thing in the panel
+  and the least often read. `PanelSection` already takes a `collapsible` flag;
+  this is that pattern, not a new one.
+- **Seven background images are uncredited.** Ten files in
+  `src/assets/backgrounds/`, three rows in `CREDITS.txt`: august is complete,
+  september is half done, and october, november and december have nothing. The
+  file's own header warned that reconstructing this later would be miserable,
+  and it was right — the photographers have to be found on Unsplash by hand.
+
+**About opens by tapping the wordmark**, which is the whole problem. Nothing
+about a title suggests it is a button, and Ruthnie — who built the app — had
+never once clicked it. Moving the backup controls to the bottom bar was
+considered and rejected on 2026-08-15: About is where they belong, and the bar
+already has an Import button meaning the Goodreads CSV, so a second Import would
+collide. **If this is fixed, fix the affordance, not the location.**
 
 ## Deliberately not built
 
