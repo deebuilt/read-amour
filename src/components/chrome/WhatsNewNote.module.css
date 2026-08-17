@@ -1,12 +1,63 @@
 /*
- * Sits between the stage and the action bar, in the shell's flex flow rather
- * than floating over it. Overlaying would put it on top of the poster, which is
- * the one thing on screen worth protecting — and a bar that pushes the layout
- * by its own height is honest about the room it takes.
+ * The contents of the what's-new modal.
+ *
+ * This was a bar pinned above the bottom nav until 2026-08-17 — the slot the old
+ * Reload button had occupied — and it was missable exactly where it mattered:
+ * a thin strip at the bottom edge, on a screen whose entire subject is the
+ * poster above it. An update landed, the app flickered, and the only way to find
+ * out what had changed was to open More → What's new by hand.
  *
  * Chrome, not poster: every colour here is a theme variable.
  */
-.banner {
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-block: 4px;
+}
+
+/*
+ * The headline carries the release, so it outranks the modal's own "What's new"
+ * title — that names the panel, this names the version.
+ */
+.headline {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ra-ink);
+}
+
+/*
+ * Always open, never behind a caret. The bar collapsed these because it had one
+ * line of room; a modal has the space, and a reader who is being interrupted
+ * should get the answer rather than another thing to tap.
+ */
+.changes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.change {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ra-ink-soft);
+  padding-left: 12px;
+  border-left: 2px solid var(--ra-line-strong);
+}
+
+/* Bar presentation ---------------------------------------------------------
+ *
+ * The alternative to the modal, kept behind `PRESENTATION` until Ruthnie has
+ * seen both — the bar had never once rendered when its placement was first
+ * questioned, so there was nothing to judge. Delete this block and its branch in
+ * the component once the choice is made.
+ */
+
+.bar {
   flex: none;
   display: flex;
   flex-direction: column;
@@ -16,7 +67,7 @@
   background: var(--ra-accent-soft);
 }
 
-.row {
+.barRow {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -24,13 +75,10 @@
 }
 
 /*
- * The headline and its caret, as one target.
- *
- * `min-width: 0` so a long headline ellipsises rather than pushing the Reload
- * button off the row — the buttons are the reason the banner exists and must
- * never be the thing that gets squeezed out.
+ * `min-width: 0` so a long headline ellipsises rather than pushing the dismiss
+ * button off the row — the button is the way out and must never be squeezed.
  */
-.summary {
+.barSummary {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -44,7 +92,7 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-.text {
+.barText {
   font-size: 13px;
   color: var(--ra-ink);
   min-width: 0;
@@ -62,33 +110,4 @@
 
 .caretOpen {
   transform: rotate(90deg);
-}
-
-.actions {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-/*
- * The expanded notes. Indented under the headline rather than bulleted across
- * the full width, so the banner still reads as one block and not as a list that
- * happens to have buttons above it.
- */
-.changes {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 0;
-  padding: 0 0 4px;
-  list-style: none;
-}
-
-.change {
-  font-size: 13px;
-  line-height: 1.45;
-  color: var(--ra-ink-soft);
-  padding-left: 10px;
-  border-left: 2px solid var(--ra-line-strong);
 }

@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react'
-import { Button, Typography } from 'antd'
+import { Button, Modal, Typography } from 'antd'
 import { RightOutlined } from '@ant-design/icons'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import { APP_VERSION, currentRelease } from '../../design/releases'
-import { claimVersionAsSeen } from '../../storage/lastSeenVersion'
+import {
+  isVersionNews,
+  markVersionSeen,
+  seedVersionIfNew,
+} from '../../storage/lastSeenVersion'
 import styles from './WhatsNewNote.module.css'
 
 /**
@@ -57,7 +61,30 @@ import styles from './WhatsNewNote.module.css'
  * ready, and the reload waits for the next `visibilitychange` into hidden. A
  * reader who never backgrounds the app gets it on their next cold start, which
  * is what would have happened anyway.
+ *
+ * ## Bar or modal — `PRESENTATION`, and why it is a switch rather than a choice
+ *
+ * The note began as a bar above the bottom nav, in the slot the old Reload
+ * button had used. It never once appeared, because of the mount-time bug
+ * described on `isVersionNews` — so when the placement was questioned, **nobody
+ * had actually seen it**. Ruthnie: *"It's one thing if the bar actually worked.
+ * It's not like I wanna take up so much space, but I just didn't know what it
+ * looked like to even know if I like the design."*
+ *
+ * Swapping a design nobody has evaluated for another one nobody has evaluated is
+ * guessing twice. Both are built, the constant below picks one, and the decision
+ * waits until there is something to look at. They are genuinely different
+ * trade-offs rather than a cosmetic pair:
+ *
+ *   'bar'   — quiet, never covers the poster, easy to miss at the screen edge.
+ *   'modal' — impossible to miss, costs an interruption and a dismissal.
+ *
+ * Whichever loses should be deleted along with its styles once the call is made.
+ * Keeping both indefinitely is how a component grows a mode nobody chose.
  */
+
+/** Which presentation the note uses. See the note above before changing it. */
+const PRESENTATION: 'bar' | 'modal' = 'modal'
 
 export function WhatsNewNote() {
   /**
@@ -115,18 +142,30 @@ export function WhatsNewNote() {
   }, [updatePending])
 
   /**
-   * Whether this launch is the first on a version the reader has not been told
-   * about — resolved once, on mount, because it is a fact about arriving here
-   * rather than a piece of changing state.
+   * Whether this version is news, decided once on mount.
    *
-   * `claimVersionAsSeen` both answers and records, in one call, so the decision
-   * to show the note and the record of having shown it cannot come apart.
+   * Asking only — the recording happens on dismissal. Doing both here is what
+   * broke the first version: the update arrives *by reloading the page*, so the
+   * new build mounted, marked its own version as seen, and consumed the news
+   * before rendering it. The app flickered and said nothing.
    */
-  const [isNews] = useState(() => claimVersionAsSeen(APP_VERSION))
-  const [isOpen, setIsOpen] = useState(false)
-  const [isDismissed, setIsDismissed] = useState(false)
+  const [isNews, setIsNews] = useState(() => isVersionNews(APP_VERSION))
 
-  if (!isNews || isDismissed) return null
+  /** Bar only — the modal shows its changes open, so it has nothing to toggle. */
+  const [isBarOpen, setIsBarOpen] = useState(false)
+
+  /**
+   * Lay down a baseline for a first-time reader.
+   *
+   * Someone with nothing stored is not shown a note — there is no "before" to
+   * describe a change against — but their version has to be recorded anyway, or
+   * the *next* update also finds no previous version and stays silent too.
+   */
+  useEffect(() => {
+    seedVersionIfNew(APP_VERSION)
+  }, [])
+
+  const release = currentRelease()
 
   /*
    * The running build's own notes, which is now simply correct: this code and
@@ -134,51 +173,105 @@ export function WhatsNewNote() {
    * app the reader is looking at.
    *
    * A build with no entry — internal work, a dependency bump — shows nothing at
-   * all. That is the honest outcome and the reason the rule in `releases.ts`
-   * says to skip such releases rather than padding them: an update the reader
-   * cannot see is not news, and a banner claiming otherwise trains people to
-   * stop reading these.
+   * all, and still records itself as seen through the dismissal path never
+   * running. That is handled by the effect below rather than by silently
+   * claiming it here.
    */
-  const release = currentRelease()
-  if (release === undefined || release.changes.length === 0) return null
+  const hasNotes = release !== undefined && release.changes.length > 0
 
-  return (
-    /*
-     * A bar above the action bar, in the shell's flex flow rather than floating
-     * over it. Overlaying would put it on top of the poster, which is the one
-     * thing on screen worth protecting.
-     *
-     * `role="status"`: worth announcing once to a screen reader, not worth
-     * seizing focus over.
-     */
-    <div className={styles.banner} role="status">
-      <div className={styles.row}>
-        {/* Tapping expands rather than navigates — the reader wants to know what
-            changed, not to leave the poster they were working on. */}
-        <button
-          type="button"
-          className={styles.summary}
-          onClick={() => setIsOpen((open) => !open)}
-          aria-expanded={isOpen}
-        >
-          <Typography.Text className={styles.text}>{release.headline}</Typography.Text>
-          <RightOutlined
-            className={isOpen ? `${styles.caret} ${styles.caretOpen}` : styles.caret}
-            aria-hidden
-          />
-        </button>
+  /*
+   * A version with nothing to say is still a version the reader has now got, so
+   * mark it seen without showing anything. Otherwise the note would appear on
+   * the *following* update carrying the wrong build's notes.
+   */
+  useEffect(() => {
+    if (isNews && !hasNotes) {
+      markVersionSeen(APP_VERSION)
+      setIsNews(false)
+    }
+  }, [isNews, hasNotes])
 
-        <div className={styles.actions}>
-          {/* Dismissing is final for this version — the note has been read, and
-              `claimVersionAsSeen` already recorded it on mount, so it will not
-              return on the next launch. The notes stay in What's New. */}
-          <Button size="small" type="text" onClick={() => setIsDismissed(true)}>
+  const dismiss = () => {
+    markVersionSeen(APP_VERSION)
+    setIsNews(false)
+  }
+
+  if (!isNews || !hasNotes) return null
+
+  if (PRESENTATION === 'bar') {
+    return (
+      /*
+       * A bar above the action bar, in the shell's flex flow rather than
+       * floating over it — so it pushes the layout by its own height instead of
+       * covering the poster.
+       *
+       * `role="status"`: worth announcing once to a screen reader, not worth
+       * seizing focus over. The modal below is the opposite trade on purpose.
+       */
+      <div className={styles.bar} role="status">
+        <div className={styles.barRow}>
+          <button
+            type="button"
+            className={styles.barSummary}
+            onClick={() => setIsBarOpen((open) => !open)}
+            aria-expanded={isBarOpen}
+          >
+            <Typography.Text className={styles.barText}>{release.headline}</Typography.Text>
+            <RightOutlined
+              className={isBarOpen ? `${styles.caret} ${styles.caretOpen}` : styles.caret}
+              aria-hidden
+            />
+          </button>
+
+          <Button size="small" type="text" onClick={dismiss}>
             Got it
           </Button>
         </div>
-      </div>
 
-      {isOpen && (
+        {isBarOpen && (
+          <ul className={styles.changes}>
+            {release.changes.map((change) => (
+              <li key={change} className={styles.change}>
+                {change}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    /*
+     * A modal in the middle of the screen, not a bar above the nav.
+     *
+     * It was a bar first, sitting where the old Reload button had been, and it
+     * was missable by design — a thin strip at the bottom edge of a screen whose
+     * whole subject is the poster above it. Ruthnie updated, saw the app flicker,
+     * and found the notes only by opening More → What's new by hand.
+     *
+     * An update is a once-per-release event that the reader cannot act on
+     * elsewhere, so it earns the interruption. Dismissing is one tap and it never
+     * returns for that version.
+     */
+    <Modal
+      open
+      onCancel={dismiss}
+      footer={null}
+      centered
+      width={340}
+      title="What's new"
+      // The mask closes it too, and that counts as reading it — anywhere the
+      // reader taps to make this go away should mean the same thing.
+      maskClosable
+      styles={{ wrapper: { overflow: 'hidden' } }}
+    >
+      <div className={styles.body}>
+        <Typography.Text className={styles.headline}>{release.headline}</Typography.Text>
+
+        {/* Open, not behind a caret. The bar hid these because it had one line
+            of room; a modal has the space, and a reader who is being interrupted
+            should get the answer rather than another thing to tap. */}
         <ul className={styles.changes}>
           {release.changes.map((change) => (
             <li key={change} className={styles.change}>
@@ -186,7 +279,11 @@ export function WhatsNewNote() {
             </li>
           ))}
         </ul>
-      )}
-    </div>
+
+        <Button type="primary" block onClick={dismiss}>
+          Got it
+        </Button>
+      </div>
+    </Modal>
   )
 }
