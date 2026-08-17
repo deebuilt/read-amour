@@ -1,0 +1,97 @@
+/*
+ * Five equal columns rather than a flex row with gaps. Equal division is what
+ * makes the bar read as a nav: the items are the same width whether their
+ * labels are four characters or seven, so the row is a rhythm rather than five
+ * differently-sized blocks. It also means Save is optically centred by the
+ * geometry itself, with no side-group balancing to keep in sync.
+ */
+.bar {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  align-items: stretch;
+  padding: 6px 4px;
+  /* Clear of the iOS home indicator. */
+  padding-bottom: max(6px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--ra-line);
+  background: var(--ra-paper-raised);
+}
+
+/*
+ * `min-width: 0` for the same reason the search results grid needs it: a grid
+ * item defaults to `min-width: auto` and refuses to shrink below the intrinsic
+ * width of its contents. Without it a long label widens its own track past the
+ * `1fr` it was given and the five columns stop being equal.
+ */
+.item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+  /* Comfortably past the 44px minimum target once the label is counted. */
+  min-height: 52px;
+  padding: 4px 2px;
+  border: none;
+  background: none;
+  color: var(--ra-ink-soft);
+  cursor: pointer;
+  /* A tap on a nav item should not also select its label. */
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 120ms ease;
+}
+
+.item:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 21px;
+  line-height: 1;
+}
+
+/*
+ * 11px — below the 12px floor of the type scale, deliberately. A nav label is
+ * not read, it is recognised; at body size five of them across a phone compete
+ * with the poster, which is the thing actually worth looking at.
+ *
+ * The letter-spacing is what keeps it legible at that size, and the nowrap is
+ * insurance: every label fits its column today, and a label added later that
+ * does not should visibly overflow rather than quietly become two lines and
+ * make the bar taller than its neighbours.
+ */
+.label {
+  font-size: 11px;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+/* The open panel, marked. Weight as well as colour, so it does not rely on
+   colour alone to say which one is showing. */
+.active {
+  color: var(--ra-accent);
+}
+
+.active .label {
+  font-weight: 500;
+}
+
+/*
+ * Export leads by colour alone. It used to be a raised primary circle; the
+ * accent glyph does the same job in a row of quiet marks without breaking the
+ * shape that makes the other four read as navigation.
+ */
+.exportItem {
+  color: var(--ra-accent);
+}
+
+.exportItem .label {
+  font-weight: 500;
+}

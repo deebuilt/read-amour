@@ -1,12 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { App as AntApp, Button, ConfigProvider, Drawer, Spin } from 'antd'
-import {
-  AppstoreOutlined,
-  BgColorsOutlined,
-  ReadOutlined,
-  SaveOutlined,
-  UploadOutlined,
-} from '@ant-design/icons'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { App as AntApp, ConfigProvider, Drawer, Spin } from 'antd'
 import { Poster } from './components/poster/Poster'
 import { DesignPanel } from './components/controls/DesignPanel'
 import { ImportPanel } from './components/controls/ImportPanel'
@@ -18,6 +11,7 @@ import { Wordmark } from './components/chrome/Wordmark'
 import { ThemeToggle } from './components/chrome/ThemeToggle'
 import { AboutPanel } from './components/chrome/AboutPanel'
 import { UpdateBanner } from './components/chrome/UpdateBanner'
+import { BottomBar, type PanelKind } from './components/chrome/BottomBar'
 import { useBoard } from './hooks/useBoard'
 import { useCoverUrls } from './hooks/useCoverUrls'
 import { useBackgroundUrl } from './hooks/useBackgroundUrl'
@@ -60,25 +54,6 @@ import styles from './App.module.css'
  * neither enough room. The drawer is the same component at every width, just
  * anchored differently.
  */
-
-type PanelKind = 'design' | 'import' | 'slot' | 'about' | 'books' | 'posters'
-
-interface BarTool {
-  key: PanelKind
-  label: string
-  icon: ReactNode
-}
-
-/** Split either side of Save. Order is by how often each gets reached for. */
-const LEFT_TOOLS: readonly BarTool[] = [
-  { key: 'posters', label: 'Posters', icon: <AppstoreOutlined /> },
-  { key: 'books', label: 'Books', icon: <ReadOutlined /> },
-]
-
-const RIGHT_TOOLS: readonly BarTool[] = [
-  { key: 'design', label: 'Design', icon: <BgColorsOutlined /> },
-  { key: 'import', label: 'Import', icon: <UploadOutlined /> },
-]
 
 export default function App() {
   const { preference, resolved, cycle } = useTheme()
@@ -403,65 +378,16 @@ export default function App() {
               actually waiting. */}
           <UpdateBanner />
 
-          {/*
-            Two icons, Save, two icons. Icon-only because five labelled buttons
-            wrap at 375px.
-
-            No tooltips: the bar sits at the bottom of the viewport, so a
-            tooltip opens upward over the drawer that the same tap just opened —
-            it covers the panel content instead of explaining anything. The
-            `aria-label` still names every button for assistive tech, which is
-            the part that actually mattered.
-          */}
-          <nav className={styles.bar}>
-            <div className={styles.barTools}>
-              {LEFT_TOOLS.map((tool) => (
-                <Button
-                  key={tool.key}
-                  type="text"
-                  size="large"
-                  icon={tool.icon}
-                  aria-label={tool.label}
-                  onClick={() => setPanel(tool.key)}
-                  className={styles.barTool}
-                />
-              ))}
-            </div>
-
-            {/* One button, two outcomes. It opens the choice rather than
-                picking one: keeping the image and posting it are different
-                intentions, and the version that guessed always guessed
-                "share" — which meant the copy was never written.
-
-                The save mark rather than a download tray: the button no longer
-                promises a download specifically, and the same mark repeats on
-                the sheet's save row so the common path is one glyph from the
-                bar to the choice. */}
-            <Button
-              type="primary"
-              shape="circle"
-              size="large"
-              icon={<SaveOutlined />}
-              aria-label="Save or share this poster"
-              onClick={() => setIsExportOpen(true)}
-              loading={isExporting}
-              className={styles.save}
-            />
-
-            <div className={styles.barTools}>
-              {RIGHT_TOOLS.map((tool) => (
-                <Button
-                  key={tool.key}
-                  type="text"
-                  size="large"
-                  icon={tool.icon}
-                  aria-label={tool.label}
-                  onClick={() => setPanel(tool.key)}
-                  className={styles.barTool}
-                />
-              ))}
-            </div>
-          </nav>
+          {/* Export opens a choice rather than picking one: keeping the image
+              and posting it are different intentions, and the version that
+              guessed always guessed "share" — which meant the copy was never
+              written. */}
+          <BottomBar
+            activePanel={panel}
+            onOpenPanel={setPanel}
+            onExport={() => setIsExportOpen(true)}
+            isExporting={isExporting}
+          />
 
           <Drawer
             open={panel !== undefined}
