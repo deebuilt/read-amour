@@ -1,13 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { Button, Typography } from 'antd'
-import { RightOutlined } from '@ant-design/icons'
 import { useRegisterSW } from 'virtual:pwa-register/react'
-import { currentRelease } from '../../design/releases'
 import styles from './UpdateBanner.module.css'
 
 /**
- * Tell the reader when a new build is waiting, say what is in it, and take it on
- * one tap.
+ * Tell the reader when a new build is waiting, and take it on one tap.
  *
  * The app is a PWA, so a new version is fetched in the background and then sits
  * there. Under the old `autoUpdate` registration it activated silently on some
@@ -38,6 +35,59 @@ import styles from './UpdateBanner.module.css'
  * None of this can be exercised on the dev server. Service workers only behave
  * realistically against a built, served app: `npm run build` then `npm run
  * preview`, or the deployed Pages site.
+ *
+ * ## Why Reload does the reloading itself
+ *
+ * `updateServiceWorker(true)` does **not** reload the page, despite the
+ * argument. Read the plugin's own `registerSW`: the parameter is named
+ * `_reloadPage` and never used. All the call does is post `SKIP_WAITING` to the
+ * waiting worker. The actual reload comes from a `controlling` listener that the
+ * plugin attaches **only inside its `waiting` handler** — so the reload works if
+ * and only if the banner was raised by a `waiting` event fired while this page
+ * was open.
+ *
+ * That is not how this app finds its updates. `onRegisteredSW` calls
+ * `registration.update()` every time the app comes to the foreground, and an
+ * installed PWA resumed from the home screen commonly has a worker that has been
+ * **waiting since a previous session**. Workbox does not re-fire `waiting` for a
+ * worker that was already waiting when it registered, so that listener is never
+ * attached — the message goes out, the new worker activates, and nothing
+ * navigates. The banner stays on screen too, because its state was never told
+ * anything happened.
+ *
+ * Ruthnie hit exactly this on the first real update: 0.4.0 deployed and served
+ * correctly, Reload did nothing however many times it was tapped, and the app
+ * kept running 0.3.0 — which is also why the banner showed 0.3.0's headline (see
+ * the note further down: the running build can only read its own notes).
+ *
+ * So the reload is owned here rather than inferred from the plugin's internals:
+ * listen for `controllerchange` — the one event that means "a different worker
+ * is now in charge of this page" — and reload on it, whichever path raised the
+ * banner. `location.reload()` re-requests the document, and the fresh worker
+ * serves the new precached shell.
+ *
+ * ## Why an ignored banner does not strand the reader forever
+ *
+ * A fair question, and the answer used to be "it does." Under `prompt` the new
+ * worker waits indefinitely, and if the only way to activate it is a button that
+ * does not work, a reader who never taps it never updates — which is precisely
+ * what happened.
+ *
+ * With the reload fixed there are now three independent paths off an old build,
+ * and only one of them needs a decision:
+ *
+ *   1. Tapping Reload.
+ *   2. Every browser tab or PWA window of the app being closed, which lets the
+ *      waiting worker activate on the next launch. This is the ordinary path for
+ *      a phone, and it is why "Later" is a real choice rather than a trap.
+ *   3. Another tab taking the update, which fires `controllerchange` here.
+ *
+ * `autoUpdate` would collapse all of that into "it just happens", and was
+ * deliberately not chosen: it reloads the page underneath someone who may be
+ * mid-edit on a poster. The posters save continuously, so nothing would be lost
+ * — but a screen that reloads itself unbidden while you are working is its own
+ * kind of broken. The prompt keeps the choice with the reader; the bug was that
+ * the choice did not work.
  */
 
 export function UpdateBanner() {
@@ -59,31 +109,82 @@ export function UpdateBanner() {
     },
   })
 
-  /** Whether the reader has expanded the banner to read the full notes. */
-  const [isOpen, setIsOpen] = useState(false)
-
-  // Collapse whenever the banner goes away, so a later update does not appear
-  // pre-expanded because of a choice made about a previous one.
+  /**
+   * Reload when a new worker takes control, no matter how the banner was raised.
+   *
+   * `controllerchange` fires once the waiting worker has activated and claimed
+   * the page. Guarded against firing twice: the spec allows it, and a second
+   * `reload()` mid-navigation is a wasted request at best.
+   *
+   * Registered unconditionally rather than inside the click handler, because the
+   * worker can also be activated from another tab of the same app — in which
+   * case this page is running stale code and should follow.
+   */
   useEffect(() => {
-    if (!needRefresh) setIsOpen(false)
-  }, [needRefresh])
+    if (!('serviceWorker' in navigator)) return
+
+    let reloading = false
+    const onControllerChange = () => {
+      if (reloading) return
+      reloading = true
+      window.location.reload()
+    }
+
+    navigator.serviceWorker.addEventListener('controllerchange', onControllerChange)
+    return () => {
+      navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange)
+    }
+  }, [])
+
+  /**
+   * Take the waiting build.
+   *
+   * Two steps, because either one alone has a hole. `updateServiceWorker` posts
+   * the skip-waiting message, and the `controllerchange` listener above reloads
+   * once the new worker claims the page — that is the normal path.
+   *
+   * The fallback exists for the case where there is nothing to claim: a worker
+   * that already activated (because a previous tap sent the message, or another
+   * tab took the update) leaves this page running stale code with no further
+   * event coming. `controllerchange` has already fired and been missed, so
+   * waiting on it is waiting forever. After a short grace period, reload
+   * regardless — the request goes to the active worker, which serves the new
+   * shell.
+   *
+   * 1.5s is long enough for a local skip-waiting round trip and short enough
+   * that a reader who tapped a button does not sit looking at an unchanged
+   * screen wondering whether it registered.
+   */
+  const handleReload = async () => {
+    window.setTimeout(() => window.location.reload(), 1_500)
+    await updateServiceWorker(true)
+  }
 
   if (!needRefresh) return null
 
   /*
-   * The notes describe the build that is WAITING, and this code is the build
-   * currently RUNNING — so strictly it cannot read them. It shows the running
-   * build's notes, which is wrong for exactly one release: the one that
-   * introduced this component. From the next update onward the waiting build's
-   * notes are what the reader sees after reloading, in About.
+   * The banner cannot name what is in the update, and says so.
    *
-   * The honest fix would be fetching the incoming build's manifest, which is a
-   * network request in an offline-first app to save one line of copy. Not worth
-   * it. The banner leads with the reload either way, and the notes are
-   * permanently available once the update lands.
+   * This code is the build currently RUNNING; the notes worth reading belong to
+   * the build WAITING. A bundled `RELEASES` array can only ever contain the
+   * former, so `currentRelease()` here returns the notes for the version the
+   * reader already has.
+   *
+   * That used to be shown as the headline, with a comment claiming it was wrong
+   * "for exactly one release: the one that introduced this component." The
+   * comment was wrong. It is wrong for **every** release, because the running
+   * build is always the old one — so the banner permanently advertised the
+   * version you were already on. Ruthnie, on the first real update: 0.4.0
+   * deployed, and the banner announced 0.3.0's headline.
+   *
+   * Fetching the incoming build's notes would mean a network request in an
+   * offline-first app, and it would have to be re-fetched past the very cache
+   * this update is replacing. Not worth it to fill in one line.
+   *
+   * So the banner promises nothing about contents. It says a new version is
+   * ready, and the notes are one tap away in What's New once it lands — which is
+   * the honest version of what this component can know.
    */
-  const release = currentRelease()
-  const hasNotes = release !== undefined && release.changes.length > 0
 
   return (
     /*
@@ -96,28 +197,7 @@ export function UpdateBanner() {
      */
     <div className={styles.banner} role="status">
       <div className={styles.row}>
-        {/*
-          Tapping expands rather than navigates. The reader asked what changed —
-          not to leave the poster they were working on.
-        */}
-        {hasNotes ? (
-          <button
-            type="button"
-            className={styles.summary}
-            onClick={() => setIsOpen((open) => !open)}
-            aria-expanded={isOpen}
-          >
-            <Typography.Text className={styles.text}>{release.headline}</Typography.Text>
-            <RightOutlined
-              className={isOpen ? `${styles.caret} ${styles.caretOpen}` : styles.caret}
-              aria-hidden
-            />
-          </button>
-        ) : (
-          /* No notes for this build, which is the honest fallback for a release
-             of internal work rather than a padded list. */
-          <Typography.Text className={styles.text}>A new version is ready.</Typography.Text>
-        )}
+        <Typography.Text className={styles.text}>A new version is ready.</Typography.Text>
 
         <div className={styles.actions}>
           {/* Dismissing only hides the bar. The worker stays waiting and takes
@@ -126,21 +206,11 @@ export function UpdateBanner() {
           <Button size="small" type="text" onClick={() => setNeedRefresh(false)}>
             Later
           </Button>
-          <Button size="small" type="primary" onClick={() => void updateServiceWorker(true)}>
+          <Button size="small" type="primary" onClick={() => void handleReload()}>
             Reload
           </Button>
         </div>
       </div>
-
-      {isOpen && hasNotes && (
-        <ul className={styles.changes}>
-          {release.changes.map((change) => (
-            <li key={change} className={styles.change}>
-              {change}
-            </li>
-          ))}
-        </ul>
-      )}
     </div>
   )
 }

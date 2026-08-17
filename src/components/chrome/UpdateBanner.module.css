@@ -5,12 +5,17 @@
  * by its own height is honest about the room it takes.
  *
  * Chrome, not poster: every colour here is a theme variable.
+ *
+ * One row, and no longer expandable. The banner used to show the release
+ * headline with a caret that opened the full notes — but a bundled `RELEASES`
+ * can only describe the build that is *running*, never the one waiting, so
+ * everything it expanded to was a description of the version the reader already
+ * had. The styles for the headline button, the caret and the notes list went
+ * with it.
  */
 .banner {
   flex: none;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
   padding: 8px 12px;
   border-top: 1px solid var(--ra-line);
   background: var(--ra-accent-soft);
@@ -21,29 +26,14 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  width: 100%;
 }
 
 /*
- * The headline and its caret, as one target.
- *
- * `min-width: 0` so a long headline ellipsises rather than pushing the Reload
- * button off the row — the buttons are the reason the banner exists and must
- * never be the thing that gets squeezed out.
+ * `min-width: 0` so the message ellipsises rather than pushing the buttons off
+ * the row — the buttons are the reason the banner exists and must never be the
+ * thing that gets squeezed out.
  */
-.summary {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  padding: 0;
-  border: none;
-  background: none;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-
 .text {
   font-size: 13px;
   color: var(--ra-ink);
@@ -53,42 +43,9 @@
   white-space: nowrap;
 }
 
-.caret {
-  flex: none;
-  font-size: 10px;
-  color: var(--ra-ink-faint);
-  transition: transform 120ms ease;
-}
-
-.caretOpen {
-  transform: rotate(90deg);
-}
-
 .actions {
   flex: none;
   display: flex;
   align-items: center;
   gap: 4px;
-}
-
-/*
- * The expanded notes. Indented under the headline rather than bulleted across
- * the full width, so the banner still reads as one block and not as a list that
- * happens to have buttons above it.
- */
-.changes {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 0;
-  padding: 0 0 4px;
-  list-style: none;
-}
-
-.change {
-  font-size: 13px;
-  line-height: 1.45;
-  color: var(--ra-ink-soft);
-  padding-left: 10px;
-  border-left: 2px solid var(--ra-line-strong);
 }
