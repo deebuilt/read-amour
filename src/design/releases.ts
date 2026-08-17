@@ -24,9 +24,14 @@
  *   refactored. "The bottom bar has labels" is chrome talk; "You can see what
  *   each button does" is the change.
  * - **Skip anything with no visible effect.** A build of internal work gets no
- *   entry at all, and `UpdateBanner` falls back to "A new version is ready."
- *   That fallback is the honest outcome, not a failure — a padded list of
- *   refactors teaches people to stop reading these.
+ *   entry at all, and `WhatsNewNote` then shows nothing when that build lands.
+ *   Silence is the honest outcome, not a failure — a padded list of refactors
+ *   teaches people to stop reading these.
+ *
+ *   Note this is now a real consequence rather than a stylistic one. The note
+ *   only appears when the running version has an entry here, so **an entry is
+ *   what makes an update visible to a reader at all.** A release that ships a
+ *   change someone can see and forgets its entry ships it silently.
  * - **No version-number theatre.** No "v0.4.0 — Q3 Release". A date and the
  *   changes.
  * - **Never a rule-of-three list.** Two changes, or five. Whatever shipped.
@@ -49,6 +54,15 @@ export interface Release {
 }
 
 export const RELEASES: readonly Release[] = [
+  {
+    version: '0.4.3',
+    date: '2026-08-17',
+    headline: 'The app updates itself now.',
+    changes: [
+      'New versions arrive on their own, while the app is closed or in the background. Nothing to tap, and it never reloads while you are working.',
+      'When you come back, a note at the bottom tells you what arrived. Tap it to read the details.',
+    ],
+  },
   {
     version: '0.4.0',
     date: '2026-08-17',

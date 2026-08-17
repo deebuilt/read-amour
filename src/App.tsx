@@ -13,7 +13,7 @@ import { ThemeToggle } from './components/chrome/ThemeToggle'
 import { AboutPanel } from './components/chrome/AboutPanel'
 import { ReleaseNotes } from './components/chrome/ReleaseNotes'
 import { MoreSheet } from './components/chrome/MoreSheet'
-import { UpdateBanner } from './components/chrome/UpdateBanner'
+import { WhatsNewNote } from './components/chrome/WhatsNewNote'
 import { BottomBar, type PanelKind } from './components/chrome/BottomBar'
 import { useBoard } from './hooks/useBoard'
 import { useCoverUrls } from './hooks/useCoverUrls'
@@ -432,7 +432,7 @@ export default function App() {
           {/* Above the bar and below the poster: the one place a notice can go
               without covering the artwork. Renders nothing until a build is
               actually waiting. */}
-          <UpdateBanner />
+          <WhatsNewNote />
 
           {/* Export opens a choice rather than picking one: keeping the image
               and posting it are different intentions, and the version that

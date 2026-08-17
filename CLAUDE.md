@@ -496,6 +496,12 @@ reload. These two are a pair — flipping the config back would leave the banner
 announcing something that had already happened. None of it can be tested on the
 dev server; service workers need `npm run build` then `npm run preview`.
 
+> **Reversed 2026-08-17.** This is now `autoUpdate` with `WhatsNewNote`
+> reporting after the fact. The pairing logic above still holds — the two must
+> move together — but the *direction* was wrong: a banner that speaks before
+> reloading can only ever read its own build's notes, so it named the version the
+> reader already had. See "Updates land on their own" below.
+
 **Grounds are sampled from the covers.** `design/palette.ts` is pure and
 `useCoverPalette` owns the async — extraction decodes blobs, so it cannot be a
 `useMemo`. It keeps each source colour's *hue* and overrides saturation and
@@ -801,6 +807,46 @@ those live in `PosterSlot.module.css` while the attribute is on the frame in
 must stay `visibility: hidden` rather than `display: none` — the two captures
 have to stay pixel-aligned, and a reflow between them would misplace every cover
 in the video.
+
+## Updates land on their own, and the app says what arrived afterwards
+
+`registerType` is **`autoUpdate`**, and `WhatsNewNote` reports what changed once
+the new build is running. There is no Reload button and nothing to press.
+
+**Why it reports instead of asking, and why that ordering is the whole design.**
+Release notes ship inside the bundle, so a running build holds its own `RELEASES`
+and never the incoming one's. A banner that announces a *waiting* update is
+therefore reading the wrong version's notes — it names the build the reader
+already has, structurally and every single time. That was live for months: 0.4.0
+deployed and the banner announced 0.3.0.
+
+Reversing the order deletes the problem instead of solving it. Let the update
+land, then speak: the app *is* the new build by then, holds its own notes, and
+describes them exactly. No network fetch, no build-time manifest, no guessing.
+
+Two wrong turns are recorded in `docs/WHATS_NEW.md` so they are not retried —
+fetching the incoming notes over the network (a request in an offline-first app,
+reaching past the very cache being replaced), and deleting the headline and notes
+to avoid the inaccuracy, which removed the feature rather than fixing it.
+
+**The trigger is `APP_VERSION` vs. `lastSeenVersion`, never a service-worker
+event.** The bundle knows its own version with certainty, so the note fires
+however the build arrived — worker update, hard refresh, cleared cache, new
+device. Everything that broke here before broke inside SW event plumbing;
+nothing about the note depends on it now.
+
+**`autoUpdate`'s one cost is paid by deferring the reload.** A page that reloads
+under someone placing covers is hostile even though posters save continuously.
+`WhatsNewNote` waits for `visibilitychange` → hidden before reloading, so the
+update lands while the app is backgrounded and the reader returns to a new
+version plus a note. Someone who never backgrounds it gets it on the next cold
+start, which is what would have happened anyway.
+
+**A first launch shows nothing** — "here's what changed" needs a before.
+
+None of this can be tested on the dev server, and one deploy is not enough
+either: proving it needs a build that ships the mechanism and a *later* build for
+it to report on.
 
 ## Every reader-visible change updates the release notes
 

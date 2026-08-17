@@ -56,19 +56,36 @@ export default defineConfig({
     react(),
     VitePWA({
       /*
-       * `prompt`, not `autoUpdate`.
+       * `autoUpdate`, not `prompt` — updates land on their own.
        *
-       * Under autoUpdate the worker skips waiting on its own and a new build
-       * activates on some later load with nothing said. That is why pulling to
-       * refresh worked only sometimes: it depended on whether the worker had
-       * happened to finish, and installed to a home screen there is no address
-       * bar either, so the gesture was the only lever and it was a guess.
+       * This was `prompt` until 2026-08-17, paired with a banner that announced
+       * a waiting build and offered a Reload button. Two things were wrong with
+       * that, and only the second was obvious:
        *
-       * With `prompt` the new worker waits, `useRegisterSW` reports it, and
-       * `UpdateBanner` offers the reload. A banner under autoUpdate would be
-       * announcing something that had already happened.
+       * 1. The button was broken for months. `updateServiceWorker(true)` does
+       *    not reload the page, so the banner sat there doing nothing.
+       *
+       * 2. More importantly, **the banner could never say what was in the
+       *    update.** Release notes ship inside the bundle, so a running build
+       *    holds its own notes and not the incoming one's. The headline named
+       *    the version the reader already had — structurally, not by accident.
+       *
+       * The fix for (2) is not to fetch the incoming notes. It is to stop
+       * announcing an update before taking it. Under `autoUpdate` the new worker
+       * activates by itself, and `UpdateBanner` reports afterwards — at which
+       * point the app IS the new build, holds its own notes, and can say what
+       * changed with no guessing. The awkward part of the old design was created
+       * entirely by insisting on speaking first.
+       *
+       * This is also what readers expect. Ruthnie: *"with most apps, the updates
+       * just there... the app just silently reloads, and then a banner pops up
+       * after the reload to say, hey, since you've been gone, this is what's
+       * there."*
+       *
+       * `UpdateBanner` handles the one real cost — a reload arriving mid-edit —
+       * by deferring activation until the app is not being used. See its notes.
        */
-      registerType: 'prompt',
+      registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
         name: 'Read Amour',

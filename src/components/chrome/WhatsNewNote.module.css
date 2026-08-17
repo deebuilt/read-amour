@@ -1,0 +1,94 @@
+/*
+ * Sits between the stage and the action bar, in the shell's flex flow rather
+ * than floating over it. Overlaying would put it on top of the poster, which is
+ * the one thing on screen worth protecting — and a bar that pushes the layout
+ * by its own height is honest about the room it takes.
+ *
+ * Chrome, not poster: every colour here is a theme variable.
+ */
+.banner {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--ra-line);
+  background: var(--ra-accent-soft);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/*
+ * The headline and its caret, as one target.
+ *
+ * `min-width: 0` so a long headline ellipsises rather than pushing the Reload
+ * button off the row — the buttons are the reason the banner exists and must
+ * never be the thing that gets squeezed out.
+ */
+.summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.text {
+  font-size: 13px;
+  color: var(--ra-ink);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.caret {
+  flex: none;
+  font-size: 10px;
+  color: var(--ra-ink-faint);
+  transition: transform 120ms ease;
+}
+
+.caretOpen {
+  transform: rotate(90deg);
+}
+
+.actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/*
+ * The expanded notes. Indented under the headline rather than bulleted across
+ * the full width, so the banner still reads as one block and not as a list that
+ * happens to have buttons above it.
+ */
+.changes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0 0 4px;
+  list-style: none;
+}
+
+.change {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ra-ink-soft);
+  padding-left: 10px;
+  border-left: 2px solid var(--ra-line-strong);
+}

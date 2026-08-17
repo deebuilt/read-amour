@@ -143,3 +143,92 @@ short, read by everyone who updates, and the exact place a generic tone shows.
 - **Migration/"what happened to my data" notices.** If a release ever needs one
   of those it is not release notes, it is a blocking dialog, and it should be
   designed then.
+
+---
+
+## Built 2026-08-17, and the design changed on contact
+
+Shipped, but **not as planned above**. The plan's two problems were both real
+and both fixed; the shape it proposed for the second one was wrong, and the
+reason is worth keeping.
+
+### What the plan got right
+
+The late-arriving update was exactly as diagnosed — no page load, no check — and
+the `visibilitychange` snippet above is in `WhatsNewNote.tsx` essentially
+verbatim.
+
+### What it got wrong: announcing an update before taking it
+
+The plan kept `registerType: 'prompt'` and had the banner describe the *waiting*
+build. That cannot work, and it is structural rather than a bug:
+
+**Release notes ship inside the bundle.** A running build holds its own
+`RELEASES` array and never the incoming one's. So a banner that speaks before
+reloading is reading the notes of the version the reader already has — the
+headline names the old version, every time. Ruthnie watched 0.4.0 deploy and the
+banner announce 0.3.0's headline.
+
+Two wrong answers were tried before the right one:
+
+1. **Fetch the incoming notes over the network.** Rejected: a request in an
+   offline-first app, and it would have to reach past the very cache the update
+   is replacing.
+2. **Delete the headline and notes**, leaving "A new version is ready." Actually
+   done, and it was the worse mistake — it removed the entire feature this
+   document exists to build, in order to avoid a cosmetic inaccuracy. Ruthnie:
+   *"You basically restored something that... has never been ideal because it's
+   not what I wanted."* Removing a feature is not a fix for it being slightly
+   wrong.
+
+### The design that works, which was Ruthnie's
+
+> *"With most apps, the updates just there... the app just silently reloads, and
+> then a banner pops up after the reload to say, hey, since you've been gone,
+> this is what's there. So we would basically show the post reload banner, not
+> the current version banner."*
+
+Report **after** the update lands rather than announcing it beforehand. Then the
+app *is* the new build when it speaks — it holds its own notes and describes them
+exactly. No fetch, no manifest, no guessing. **The hard problem was created
+entirely by the ordering**, and reversing it deleted the problem rather than
+solving it.
+
+### What shipped
+
+- `registerType: 'autoUpdate'` in `vite.config.ts`. Paired with the component,
+  the same way `prompt` was paired with the old banner — flip one without the
+  other and you get either a silent update nobody hears about, or a note about
+  something that has not happened.
+- `UpdateBanner` → **`WhatsNewNote`**, renamed because it reports rather than
+  asks. No Reload button; it cannot be stuck, because there is nothing to press.
+- `storage/lastSeenVersion.ts` — one localStorage string, following
+  `useTheme`'s precedent. `claimVersionAsSeen()` answers and records in one
+  call, so the decision to show and the record of having shown cannot drift.
+- **The trigger is `APP_VERSION` vs. last seen, not a service-worker event.** The
+  running bundle knows its own version with certainty, so the note works however
+  the build arrived — worker update, hard refresh, cleared cache. None of it
+  depends on the SW machinery that failed repeatedly before.
+- A first-time reader sees nothing. "Here's what changed" is meaningless with
+  nothing to compare against.
+
+### The one cost, and how it is paid
+
+`autoUpdate` can reload the page under someone mid-edit. Posters save
+continuously so nothing is lost, but it is still hostile. So the reload is
+**deferred until the app is backgrounded** (`visibilitychange` → hidden). A
+reader who never backgrounds it gets the update on their next cold start, which
+is what would have happened anyway.
+
+### A consequence for the release ritual
+
+The note only appears when the running version has an entry in `RELEASES`. So an
+entry is now **what makes an update visible to a reader at all** — a release that
+ships a visible change and forgets its entry ships it silently. Noted in
+`releases.ts` beside the rule.
+
+### Still unverified at the time of writing
+
+The full sequence has never been watched end to end, because it needs two
+deploys: one to ship this mechanism, and a later one for it to report on. Every
+attempt so far has been blocked by the previous design's broken Reload.
