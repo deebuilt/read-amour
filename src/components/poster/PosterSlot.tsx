@@ -248,9 +248,15 @@ export function PosterSlot({
           src={coverUrl}
           alt={book ? `${book.title} cover` : ''}
           draggable={false}
-          /* Marks this as cover art so the animation export can capture the
-             poster once without any covers placed — the ground its reveal
-             composites against. See `Poster.module.css`. */
+          /* Marks this as per-book artwork so the animation export can capture
+             the poster once with no books placed — the ground its reveal
+             composites against. See `Poster.module.css`.
+
+             Every element in this slot drawn FROM A BOOK carries this, not only
+             the cover image: the stars, the crown and the coverless fallback
+             plate are all things that should be absent from an empty poster.
+             Marking only the image left stars sitting in empty slots, and every
+             arriving cover painted a second set on top of them. */
           data-ra-cover="true"
         />
       )}
@@ -266,6 +272,7 @@ export function PosterSlot({
       {showRating && ratedStars !== undefined && (
         <div
           className={styles.ratingBand}
+          data-ra-cover="true"
           style={{
             paddingTop: isCoverless ? bandPadding : bandPadding * 2,
             paddingBottom: bandPadding,
@@ -311,6 +318,7 @@ export function PosterSlot({
       {isFavourite && (
         <div
           className={styles.favouriteMark}
+          data-ra-cover="true"
           style={{
             top: favouriteAtFoot ? undefined : favouriteInset,
             bottom: favouriteAtFoot ? favouriteInset : undefined,
@@ -338,6 +346,7 @@ export function PosterSlot({
       {isCoverless && book && (
         <div
           className={styles.fallback}
+          data-ra-cover="true"
           style={{
             color: inkColor,
             fontFamily,

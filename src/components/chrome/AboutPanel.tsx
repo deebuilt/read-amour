@@ -2,7 +2,6 @@ import { Typography } from 'antd'
 import { CREDITS } from '../../design/credits'
 import { APP_VERSION } from '../../design/releases'
 import { BackupControls } from '../controls/BackupControls'
-import { ReleaseNotes } from './ReleaseNotes'
 import styles from './AboutPanel.module.css'
 
 /**
@@ -41,13 +40,10 @@ export function AboutPanel({ onRestored }: AboutPanelProps) {
         <BackupControls onRestored={onRestored} />
       </section>
 
-      {/* Sits above the credits because it is the part of this panel worth
-          returning to — the credits are the longest thing here and the least
-          often read. */}
-      <section className={styles.section}>
-        <Typography.Text className={styles.label}>What's new</Typography.Text>
-        <ReleaseNotes />
-      </section>
+      {/* What's new used to sit here, between the backup controls and the
+          credits. It is its own destination in More now: it was the part of this
+          panel worth returning to, and burying the app's only changelog inside a
+          panel that reads as small print meant nobody returned to it. */}
 
       <section className={styles.section}>
         <Typography.Text className={styles.label}>Book covers</Typography.Text>

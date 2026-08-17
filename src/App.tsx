@@ -11,6 +11,7 @@ import { StatsPanel } from './components/stats/StatsPanel'
 import { Wordmark } from './components/chrome/Wordmark'
 import { ThemeToggle } from './components/chrome/ThemeToggle'
 import { AboutPanel } from './components/chrome/AboutPanel'
+import { ReleaseNotes } from './components/chrome/ReleaseNotes'
 import { MoreSheet } from './components/chrome/MoreSheet'
 import { UpdateBanner } from './components/chrome/UpdateBanner'
 import { BottomBar, type PanelKind } from './components/chrome/BottomBar'
@@ -38,9 +39,11 @@ import {
 } from './export/exportPoster'
 import {
   DEFAULT_DURATION_MS,
+  DEFAULT_TRANSITION,
   canExportVideo,
   posterToVideo,
   videoUnavailableReason,
+  type TransitionId,
 } from './export/posterVideo'
 import { monthName } from './import/goodreads'
 import { getBoardByMonth, saveBoard } from './storage/db'
@@ -72,6 +75,7 @@ const PANEL_TITLES: Record<PanelKind, string> = {
   design: 'Design',
   import: 'Import from Goodreads',
   about: 'About',
+  whatsNew: "What's new",
   books: 'Books on this poster',
   posters: 'Posters',
   stats: 'Reading stats',
@@ -126,6 +130,8 @@ export default function App() {
    * board would mean a poster carrying a video setting it may never use.
    */
   const [videoDuration, setVideoDuration] = useState(DEFAULT_DURATION_MS)
+  /** How each cover arrives. Session-scoped for the same reason as the length. */
+  const [videoTransition, setVideoTransition] = useState<TransitionId>(DEFAULT_TRANSITION)
 
   useEffect(() => {
     let cancelled = false
@@ -347,6 +353,7 @@ export default function App() {
           const blob = await posterToVideo(posterRef.current, board, {
             fileName,
             durationMs: videoDuration,
+            transition: videoTransition,
             onProgress: setVideoProgress,
           })
           // The MIME type is what tells the OS this is motion, so the share
@@ -371,7 +378,7 @@ export default function App() {
         setVideoProgress(0)
       }
     },
-    [board, videoDuration],
+    [board, videoDuration, videoTransition],
   )
 
   /** Months that already have a poster, so the import list can mark them. */
@@ -469,6 +476,7 @@ export default function App() {
               />
             )}
             {panel === 'about' && <AboutPanel onRestored={() => void refreshBoards()} />}
+            {panel === 'whatsNew' && <ReleaseNotes />}
             {panel === 'stats' && (
               <StatsPanel
                 boards={boards}
@@ -525,6 +533,8 @@ export default function App() {
             canAnimate={canAnimate}
             videoBlockedBy={canAnimate ? undefined : videoUnavailableReason()}
             durationMs={videoDuration}
+            transition={videoTransition}
+            onTransitionChange={setVideoTransition}
             onDurationChange={setVideoDuration}
             coverCount={board ? filledCount(board) : 0}
             videoProgress={videoProgress}

@@ -37,15 +37,24 @@
  * cover may be photography, which is precisely the part of it never otherwise
  * visible. So the poster is captured a second time with this attribute set.
  *
- * Covers only. The empty-slot tints, the title, the caption and the background
- * all stay, because they are present throughout the animation and only the
- * cover art arrives during it.
+ * Everything drawn FROM A BOOK goes, not only the cover image — the rating
+ * stars, the favourite crown, and a coverless book's fallback title plate all
+ * carry `data-ra-cover` for this reason. The empty-slot tints, the title, the
+ * caption and the background all stay, because they are present throughout the
+ * animation and belong to the poster rather than to any one book.
+ *
+ * This selector read `img[data-ra-cover]` until 2026-08-17, which hid the cover
+ * and left the stars and crown sitting in every empty slot — so each arriving
+ * cover painted a second set on top of the pair already there. It was invisible
+ * while every transition kept the cover in place (the two copies coincide) and
+ * obvious the moment `drop` and `zoom` displaced it. Any new per-book element in
+ * a slot needs the attribute too.
  *
  * `visibility` rather than `display` so nothing reflows — the slot keeps its
  * box, and the two captures stay pixel-aligned with each other. A layout shift
  * between them would misplace every cover in the video.
  */
-.frame[data-ra-hide-covers='true'] img[data-ra-cover='true'] {
+.frame[data-ra-hide-covers='true'] [data-ra-cover='true'] {
   visibility: hidden;
 }
 

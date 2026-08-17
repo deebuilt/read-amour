@@ -50,9 +50,18 @@ export interface Release {
 
 export const RELEASES: readonly Release[] = [
   {
+    version: '0.4.0',
+    date: '2026-08-17',
+    headline: 'Pick how your covers appear.',
+    changes: [
+      'Your video can use one of four transitions: covers can fade in, slide up from below, fall from above, or start large and shrink into place. Choose one under Export.',
+      "What's new has its own place in the More menu, instead of being tucked inside About.",
+    ],
+  },
+  {
     version: '0.3.0',
     date: '2026-08-17',
-    headline: 'Your reading, counted.',
+    headline: 'Reading stats are here.',
     changes: [
       'Reading stats, under More: how many books a month, how you rate them, and a few things your library says about you.',
       'A finish date is what puts a book on those charts, so there is now one place to add every date you are missing.',

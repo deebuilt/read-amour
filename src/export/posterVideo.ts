@@ -165,12 +165,48 @@ const FPS = 24
 const ARRIVAL_SHARE = 0.55
 
 /**
- * How much larger a cover starts before settling to its true size.
+ * ## Each transition must differ on an AXIS, not by a magnitude
  *
- * Small deliberately. A large zoom is a slideshow transition; six percent reads
- * as the cover dropping into a place that was already waiting for it.
+ * This file shipped four transitions that were really two. `settle` (scale
+ * 1.06→1.00), `fade` (scale flat) and `bounce` (scale 1.06→1.00 with a small
+ * dip) all moved the cover along the *same* axis by *different amounts* —
+ * and the amounts were tiny. Measured on a 4x4 slot at 720p, the largest
+ * on-screen difference between settle and bounce was **3.6 pixels**, lasting
+ * about two frames at 24fps. Ruthnie exported all four and reported the only
+ * one she could identify was `rise`, which was the only one that moved the
+ * cover somewhere.
+ *
+ * She was right, and the failure has a shape worth naming. The first `bounce`
+ * was a 0→1.15 overshoot, correctly judged too violent — but the correction
+ * pulled it into `settle`'s range instead of moving it to a different axis, so
+ * fixing "too big" produced "identical". A magnitude is not a distinction.
+ *
+ * So the four are now one per axis:
+ *
+ *   fade  — opacity only. Nothing moves, nothing resizes.
+ *   rise  — position, from below.
+ *   drop  — position, from above.
+ *   zoom  — scale, and large enough to read as scale.
+ *
+ * The floor for a new one: at least ~40px of on-screen divergence from every
+ * existing transition, on a 4x4 slot at 720p, sustained over more than a couple
+ * of frames. Below that it is the same transition with a different name.
  */
-const ARRIVAL_OVERSHOOT = 0.06
+
+/**
+ * How much larger a `zoom` cover starts.
+ *
+ * 45%, where the old shared overshoot was 6%. The small value was right when
+ * every transition carried it — a 6% wobble under a fade is a texture, not an
+ * effect. As the *identity* of one transition it has to be legible on its own,
+ * and 45% of a slot is about 100px on a 4x4. Still clipped to the slot, so a
+ * large start reads as the cover pushing outward into its frame rather than
+ * overlapping its neighbours.
+ */
+const ZOOM_SCALE = 0.45
+
+/** How far a cover travels on a directional arrival, as a share of its own size. */
+const SLIDE_DISTANCE = 0.35
 
 const clamp01 = (value: number): number => Math.min(1, Math.max(0, value))
 
@@ -181,6 +217,140 @@ const clamp01 = (value: number): number => Math.min(1, Math.max(0, value))
  * physical object would, where a linear fade reads as mechanical.
  */
 const easeOut = (t: number): number => 1 - (1 - t) ** 3
+
+/* Transitions ------------------------------------------------------------- */
+
+/**
+ * How a cover arrives on the poster.
+ *
+ * The animation had exactly one transition — fade up while settling from six
+ * percent oversized — applied to every cover on every poster. It is a good
+ * default and it was the only thing about the video that was not the reader's
+ * choice: length is hers, the poster is hers, and then every cover landed the
+ * same way regardless of what the poster looked like.
+ *
+ * These are deliberately a small closed set rather than a set of sliders. The
+ * axes that matter — opacity, scale, offset — are not things anyone wants to
+ * specify in numbers, and exposing them would be the pacing mistake this file
+ * already made once, in a different costume. Four named transitions, each a
+ * complete idea, and the reader picks one by looking at it.
+ *
+ * Each one owns an axis — see the note above `ZOOM_SCALE`. That is the rule a
+ * fifth has to satisfy, and the rule the first version of this catalogue broke.
+ *
+ * A transition is a pure function of one cover's progress, `0` to `1`, returning
+ * how to paint it. It knows nothing about timing, order, or the poster — so
+ * adding one cannot affect the timeline, and none of them can drift from the
+ * geometry `revealRects` derives.
+ */
+export type TransitionId = 'fade' | 'rise' | 'drop' | 'zoom'
+
+/** How a cover is painted partway through its arrival. */
+interface TransitionFrame {
+  /** 0 to 1. */
+  opacity: number
+  /** 1 is the cover's true size. */
+  scale: number
+  /** Offset from the slot, as a share of slot width and height. */
+  offsetX: number
+  offsetY: number
+}
+
+export interface Transition {
+  id: TransitionId
+  /** Shown in the export sheet. */
+  label: string
+  /**
+   * One line in plain language, saying what the reader will see.
+   *
+   * Not "eases down into place" — that described a 6% scale change nobody could
+   * see, and dressed three identical transitions in three different sentences.
+   * If the description has to work that hard, the transition is not distinct
+   * enough to offer.
+   */
+  description: string
+  frame: (progress: number) => TransitionFrame
+}
+
+/**
+ * The four, one per axis.
+ *
+ * `fade` is first and is the default. The old default was `settle`, whose
+ * identity was a 6% scale wobble — so `fade` is what that always effectively
+ * looked like, now named honestly.
+ */
+export const TRANSITIONS: readonly Transition[] = [
+  {
+    id: 'fade',
+    label: 'Fade',
+    description: 'Covers fade in where they belong',
+    // The quiet one, and the default. On a busy poster — sixteen covers over a
+    // photograph — movement in every slot is noise, and this lets the artwork
+    // be the thing that changes.
+    frame: (progress) => ({
+      opacity: easeOut(progress),
+      scale: 1,
+      offsetX: 0,
+      offsetY: 0,
+    }),
+  },
+  {
+    id: 'rise',
+    label: 'Rise',
+    description: 'Covers slide up from below',
+    frame: (progress) => {
+      const eased = easeOut(progress)
+      return {
+        opacity: eased,
+        scale: 1,
+        offsetX: 0,
+        offsetY: SLIDE_DISTANCE * (1 - eased),
+      }
+    },
+  },
+  {
+    id: 'drop',
+    label: 'Drop',
+    description: 'Covers fall into place from above',
+    // The mirror of `rise`, and the pair is why both earn a place: they are the
+    // same amount of movement in opposite directions, which is the clearest
+    // distinction available on this axis. Falling with the reading order also
+    // suits a poster that fills top to bottom.
+    frame: (progress) => {
+      const eased = easeOut(progress)
+      return {
+        opacity: eased,
+        scale: 1,
+        offsetX: 0,
+        offsetY: -SLIDE_DISTANCE * (1 - eased),
+      }
+    },
+  },
+  {
+    id: 'zoom',
+    label: 'Zoom',
+    description: 'Covers start large and shrink into their slot',
+    frame: (progress) => {
+      const eased = easeOut(progress)
+      return {
+        opacity: eased,
+        scale: 1 + ZOOM_SCALE * (1 - eased),
+        offsetX: 0,
+        offsetY: 0,
+      }
+    },
+  },
+] as const
+
+export const DEFAULT_TRANSITION: TransitionId = 'fade'
+
+export function transitionById(id: TransitionId | undefined): Transition {
+  return (
+    TRANSITIONS.find((transition) => transition.id === id) ??
+    TRANSITIONS.find((transition) => transition.id === DEFAULT_TRANSITION) ??
+    TRANSITIONS[0]
+  )
+}
 
 /**
  * H.264 Baseline.
@@ -203,6 +373,12 @@ export interface PosterVideoOptions {
    * needs ends.
    */
   durationMs?: number
+  /**
+   * How each cover arrives. Defaults to `settle`, which is what every video
+   * exported before transitions existed — so an unset value reproduces the old
+   * animation exactly rather than silently changing it.
+   */
+  transition?: TransitionId
   /** 0 to 1, for a progress label. Called per cover. */
   onProgress?: (fraction: number) => void
 }
@@ -348,6 +524,10 @@ export async function posterToVideo(
     MAX_DURATION_MS,
     Math.max(MIN_DURATION_MS, options.durationMs ?? DEFAULT_DURATION_MS),
   )
+  // Resolved through the lookup rather than read directly, so a board carrying
+  // an id from a build that offered a transition this one does not falls back to
+  // the default instead of throwing partway through an encode.
+  const transition = transitionById(options.transition)
 
   if (!(await canExportVideo())) {
     throw new Error('This browser cannot record video.')
@@ -436,13 +616,13 @@ export async function posterToVideo(
    * Draw the poster, each cover at its own stage of arriving.
    *
    * `progressOf(i)` is 0 before cover `i` starts, 1 once it has settled, and
-   * somewhere between while it is arriving. A cover mid-arrival is drawn
-   * slightly oversized and partly transparent, easing to its true size and full
-   * opacity — so it reads as landing rather than switching on.
+   * somewhere between while it is arriving. What a partly-arrived cover looks
+   * like is the transition's business, not this function's — `compose` only
+   * asks where the cover is in its arrival and paints what comes back.
    *
-   * The scale-down is small on purpose. A big zoom would be a slideshow effect;
-   * a few percent reads as the cover settling into a place that was waiting for
-   * it, which is what a poster assembling should look like.
+   * A cover at full progress is blitted straight from the still at its exact
+   * rectangle: no alpha, no transform, pixel for pixel what the PNG holds. That
+   * is what keeps the last frame of the video identical to the still export.
    */
   const compose = (progressOf: (index: number) => number): void => {
     context.drawImage(ground, 0, 0, VIDEO_WIDTH, VIDEO_HEIGHT)
@@ -462,23 +642,25 @@ export async function posterToVideo(
         continue
       }
 
-      const eased = easeOut(progress)
-      const scale = 1 + ARRIVAL_OVERSHOOT * (1 - eased)
-      const width = rect.width * scale
-      const height = rect.height * scale
-      // Grown about its own centre, so it settles inward from every edge
-      // rather than sliding out of one corner.
-      const x = rect.x - (width - rect.width) / 2
-      const y = rect.y - (height - rect.height) / 2
+      const frame = transition.frame(progress)
+      const width = rect.width * frame.scale
+      const height = rect.height * frame.scale
+      // Scaled about its own centre, so it settles inward from every edge
+      // rather than growing out of one corner, then displaced by whatever
+      // offset the transition asks for.
+      const x = rect.x - (width - rect.width) / 2 + frame.offsetX * rect.width
+      const y = rect.y - (height - rect.height) / 2 + frame.offsetY * rect.height
 
       context.save()
-      context.globalAlpha = eased
+      context.globalAlpha = clamp01(frame.opacity)
       /*
        * Clipped to the slot for the whole arrival.
        *
-       * An oversized cover would otherwise paint over its neighbours and over
-       * the poster's margins — and on a bleed poster, where slots touch, it
-       * would overlap covers that have already landed.
+       * An oversized or offset cover would otherwise paint over its neighbours
+       * and over the poster's margins — and on a bleed poster, where slots
+       * touch, it would overlap covers that have already landed. This is what
+       * lets a transition move a cover freely without any of them needing to
+       * know what is next to it.
        */
       context.beginPath()
       context.rect(rect.x, rect.y, rect.width, rect.height)

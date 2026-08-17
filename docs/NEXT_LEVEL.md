@@ -1294,3 +1294,86 @@ landing rather than an image appearing. Both are inside `compose()`.
 
 **If more than one ever ships, it wants a control** — the same argument as the
 length slider. Pacing turned out to be taste, and so is this.
+
+---
+
+- **2026-08-17 — Transitions shipped, and a bug in the ground capture found by
+  watching them.** Four transitions behind a control in `ExportSheet`, plus
+  What's new moved out of About into its own destination under More.
+
+  **The first four transitions were really two, and the measurement says why.**
+  They shipped as `settle` / `fade` / `rise` / `bounce`, and Ruthnie exported all
+  four: *"there's not really a distinction between fade and bounce... the only
+  thing that's really unique is rise."* Measured on a 4x4 slot at 720p, the peak
+  on-screen difference between `settle` and `bounce` was **3.6 pixels**, lasting
+  about two frames at 24fps. `fade` vs `settle` was 14px.
+
+  The cause is worth keeping, because it is a shape of mistake rather than a
+  wrong number. Three of the four differed **in magnitude along one axis**
+  (scale: 1.06→1.00, flat, and 1.06→1.00 with a dip). Only `rise` differed on a
+  *different* axis, which is exactly the one she could name.
+
+  It got that way by overcorrection. The first `bounce` was a 0→1.15 overshoot,
+  correctly judged too violent — and the fix pulled it into `settle`'s range
+  rather than moving it to another axis. **Fixing "too big" produced
+  "identical."**
+
+  Now one transition per axis: **fade** (opacity), **rise** (position, up),
+  **drop** (position, down), **zoom** (scale, 45% — where the invisible one was
+  6%). Weakest pair is **106px** against a stated floor of 40px, and all four
+  converge exactly to rest so the final video frame stays pixel-identical to the
+  still export. The floor is written into `posterVideo.ts` as the rule a fifth
+  has to satisfy.
+
+  Note this partly contradicts the "cheap wins" list above, which recommended
+  **spin plus overshoot** as the best first addition. Overshoot is precisely
+  what `bounce` was, and it is invisible at any magnitude small enough to suit
+  this poster. Spin is still live and still genuinely distinct — rotation is a
+  fourth axis — and was left out on taste rather than cost: a rotating cover
+  reads as a slideshow effect where the covers are meant to be the artwork.
+
+  **The ground capture hides covers but not what is drawn over them — a real
+  bug, unfixed.** Ruthnie, on `drop`: the rating stars are *already present in
+  the empty slot*, and then the cover slides down with its own stars attached
+  and lands on top of them. She offered it as a quirk of the capture; it is not.
+
+  `posterToVideo` takes a second capture with `data-ra-hide-covers` on the node,
+  and the only rule keying off that attribute is in `Poster.module.css`:
+
+      .frame[data-ra-hide-covers='true'] img[data-ra-cover='true']
+
+  It hides the cover `img` and nothing else. A slot also renders `.ratingBand` /
+  `.ratingStars`, `.favouriteMark` (the crown), and `.fallback` (a coverless
+  book's tinted title plate) — none of which are covers, all of which are drawn
+  *per book* and should be absent from an empty poster. So the ground carries
+  stars, crowns and fallback plates in every filled slot, and each transition
+  paints a second copy on top as the cover arrives.
+
+  Why it went unseen until now: with `settle`/`fade` nothing moved, so the two
+  copies sat exactly on top of each other. It takes a transition that
+  **displaces** the cover to separate them — which is what `drop` and `zoom` do.
+  The rule's own comment claims "covers only... only the cover art arrives
+  during it", which was the intent and was never true of the selector.
+
+  **Fixed the same session.** The natural-looking fix — extend the selector to
+  the other three class names — does not work: the attribute is on the frame in
+  `Poster.module.css` while the stars, crown and fallback are classed in
+  `PosterSlot.module.css`, and CSS Modules scopes those names separately. So the
+  three now carry `data-ra-cover` themselves, the same mark the cover image
+  already had, and the selector drops its `img` qualifier:
+
+      .frame[data-ra-hide-covers='true'] [data-ra-cover='true']
+
+  The attribute's meaning widens from "this is cover art" to "this is drawn from
+  a book", which is what the ground capture actually needs to exclude. Kept as
+  `visibility: hidden` rather than `display: none` — the reflow warning in that
+  comment is load-bearing, since a layout shift between the two captures would
+  misplace every cover in the video. Verified there is no `visibility: visible`
+  anywhere in the poster styles that could override the inherited value, and
+  that `.ratingStars` sits inside `.ratingBand` so it inherits rather than
+  needing its own mark.
+
+  **Not yet seen in an export.** Typecheck and lint pass; the visual proof is a
+  `drop` or `zoom` video, since those are the transitions that displace the cover
+  far enough to separate the two copies. Check an empty slot on a poster with
+  ratings on before the first cover lands.

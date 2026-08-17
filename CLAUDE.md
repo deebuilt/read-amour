@@ -742,6 +742,66 @@ About. Demoting a frequent action behind a tap to make room for features that do
 not exist yet is a straight downgrade. Build Stats first; then the menu has
 contents and the nav change has a reason. See `docs/STATS.md`.
 
+## A transition must differ on an axis, not by a magnitude
+
+The video's four transitions — **fade** (opacity), **rise** (position, up),
+**drop** (position, down), **zoom** (scale) — each own a different axis, and
+that is a rule rather than an accident of design.
+
+The first version did not. It shipped `settle`, `fade`, `rise` and `bounce`,
+where three of the four differed only in *how much* they scaled: 1.06→1.00, flat,
+and 1.06→1.00 with a small dip. Peak on-screen difference between `settle` and
+`bounce` was **3.6 pixels** on a 4x4 slot at 720p, for about two frames at 24fps.
+Ruthnie exported all four and could name exactly one — `rise`, the only one that
+moved the cover somewhere.
+
+It got that way by overcorrecting. `bounce` was first written as a 0→1.15
+overshoot, correctly judged too violent for a cover arriving at a slot that is
+already waiting for it — and the correction pulled it into `settle`'s range
+instead of moving it to another axis. **Fixing "too big" produced "identical."**
+
+The floor, written into `posterVideo.ts`: a new transition needs at least ~40px
+of on-screen divergence from *every* existing one, on a 4x4 slot at 720p,
+sustained over more than a couple of frames. The weakest pair among the four is
+106px. Below that floor it is the same transition with a different name.
+
+Two consequences worth knowing before proposing more. **Overshoot is not
+available** — it is what `bounce` was, and at any magnitude gentle enough for
+this poster it is invisible. **Spin is available** and genuinely distinct, since
+rotation is an axis nothing else uses; it is left out on taste, because a
+rotating cover reads as a slideshow effect where the covers are the artwork.
+
+Every transition must also converge exactly to rest at progress 1. `compose()`
+blits the cover directly from the still at that point, so a curve that has not
+arrived produces a visible snap on the handoff — and the last frame of the video
+would stop being pixel-identical to the PNG export.
+
+## The video's ground capture must hide everything drawn per book
+
+`posterToVideo` takes two captures: the finished poster, and the poster with
+`data-ra-hide-covers` set on the node, which is meant to be the poster with no
+books on it. The second is the ground every frame is painted onto.
+
+Until 2026-08-17 the rule hid the cover `img` and nothing else. A slot also
+renders rating stars, the favourite crown, and a coverless book's fallback plate
+— all drawn per book, none of them the cover `img` — so the ground carried stars
+and crowns in every filled slot and each arriving cover painted a second copy on
+top. It survived because `settle` and `fade` did not displace the cover, so the
+two copies coincided exactly; `drop` and `zoom` separated them and it was
+immediately visible.
+
+**So `data-ra-cover` means "drawn from a book", not "is the cover image"**, and
+all four elements carry it. The selector is
+`.frame[data-ra-hide-covers='true'] [data-ra-cover='true']` — deliberately not
+scoped to `img`, and deliberately not written against the class names, since
+those live in `PosterSlot.module.css` while the attribute is on the frame in
+`Poster.module.css` and CSS Modules scopes them separately.
+
+**Anything new drawn inside a slot from book data needs the attribute**, and it
+must stay `visibility: hidden` rather than `display: none` — the two captures
+have to stay pixel-aligned, and a reflow between them would misplace every cover
+in the video.
+
 ## Every reader-visible change updates the release notes
 
 A PWA has no App Store listing, so the app is the only place that can tell a

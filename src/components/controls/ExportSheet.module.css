@@ -110,13 +110,6 @@
 /*
  * The length control.
  *
- * Sits inside the same bordered-row rhythm as the options but reads as a
- * setting rather than an action — no hover state, no pointer, since tapping it
- * anywhere other than the slider should do nothing.
- */
-/*
- * The length control.
- *
  * Bordered like the action rows so the group reads as one column, but visibly
  * not a button: no hover state and no pointer, since tapping anywhere other
  * than the slider should do nothing. The tinted ground is what separates a
@@ -160,4 +153,74 @@
   font-weight: 500;
   color: var(--ra-ink);
   font-variant-numeric: tabular-nums;
+}
+
+/*
+ * The transition control, carrying the same tinted ground as the length above it.
+ *
+ * Both are settings on the animation rather than actions, and the shared
+ * treatment is what says so — the two read as a pair of controls above the two
+ * buttons, which is the grouping the flat list of five rows lacked.
+ */
+.transition {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--ra-line);
+  border-radius: 8px;
+  background: var(--ra-paper-raised);
+}
+
+/*
+ * Four across at any width the modal reaches.
+ *
+ * A grid of equal columns rather than a flex row, for the reason written up in
+ * `BottomBar` and in `CLAUDE.md`: equal division is what makes a set of choices
+ * read as one control instead of four differently-sized chips. The modal is
+ * 360px and the longest label is "Bounce", so four columns are comfortable
+ * without wrapping.
+ */
+.transitionOptions {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+/*
+ * `min-width: 0` for the same reason every other grid in this app carries it —
+ * a grid item defaults to `min-width: auto` and refuses to shrink below its
+ * contents, so the longest label would widen its own track past the `1fr` and
+ * the columns would stop being equal.
+ */
+.transitionOption {
+  min-width: 0;
+  padding: 8px 4px;
+  border: 1px solid var(--ra-line);
+  border-radius: 6px;
+  background: var(--ra-paper);
+  font: inherit;
+  font-size: 13px;
+  color: var(--ra-ink-soft);
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.transitionOption:hover:not(:disabled) {
+  border-color: var(--ra-line-strong);
+  color: var(--ra-ink);
+}
+
+.transitionOption:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* Selection leads on the accent, matching how Export leads the bottom bar —
+   one marked item among quiet ones needs no second signal. */
+.transitionSelected,
+.transitionSelected:hover:not(:disabled) {
+  border-color: var(--ra-accent);
+  color: var(--ra-accent);
+  font-weight: 500;
 }

@@ -51,6 +51,7 @@ export type PanelKind =
   | 'import'
   | 'slot'
   | 'about'
+  | 'whatsNew'
   | 'books'
   | 'posters'
   | 'stats'
@@ -94,7 +95,12 @@ const ITEMS: readonly BarItem[] = [
  * one of them is open. Without this, opening Stats would leave every item in the
  * bar unmarked and the drawer would look like it belonged to nothing.
  */
-const MORE_PANELS: ReadonlySet<PanelKind> = new Set<PanelKind>(['stats', 'import', 'about'])
+const MORE_PANELS: ReadonlySet<PanelKind> = new Set<PanelKind>([
+  'stats',
+  'import',
+  'about',
+  'whatsNew',
+])
 
 interface BottomBarProps {
   /** The panel currently open, so the bar can mark it. `undefined` when the

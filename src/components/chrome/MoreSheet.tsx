@@ -1,6 +1,12 @@
 import type { ReactNode } from 'react'
 import { Modal } from 'antd'
-import { BarChartOutlined, InfoCircleOutlined, UploadOutlined } from '@ant-design/icons'
+import {
+  BarChartOutlined,
+  InfoCircleOutlined,
+  SoundOutlined,
+  UploadOutlined,
+} from '@ant-design/icons'
+import { RELEASES } from '../../design/releases'
 import type { PanelKind } from './BottomBar'
 import styles from './MoreSheet.module.css'
 
@@ -22,8 +28,20 @@ import styles from './MoreSheet.module.css'
  * Rows rather than a grid, matching `ExportSheet` — a short list of destinations
  * reads down the left edge, and a full-width row is a target a thumb cannot
  * miss. Each carries a line of description because, unlike Save and Share, none
- * of these three says what it does from its label alone: "About" in particular
- * gives no hint that a reader's backup lives behind it.
+ * of these says what it does from its label alone: "About" in particular gives
+ * no hint that a reader's backup lives behind it.
+ *
+ * **What's new is a destination rather than a section of About.** It had been
+ * the third section down inside that panel, which put the app's only record of
+ * its own history behind two taps and a scroll, under a heading nobody opens —
+ * About reads as legal small print, and a reader looking for what changed has no
+ * reason to look inside it. The two were only ever together because About was
+ * where the release notes were first built.
+ *
+ * Its description is the newest release's headline rather than a fixed line.
+ * That is the one row here whose contents change between builds, so it is the
+ * one row that can say something specific — a static "see what changed" would be
+ * telling the reader nothing they could not guess from the label.
  */
 
 interface MoreSheetProps {
@@ -45,6 +63,15 @@ const ROWS: readonly MoreRow[] = [
     label: 'Reading stats',
     description: 'What your library adds up to',
     icon: <BarChartOutlined />,
+  },
+  {
+    key: 'whatsNew',
+    label: "What's new",
+    // The newest headline, so the row says what actually changed rather than
+    // that something did. Falls back only if `RELEASES` is ever empty, which
+    // is a state the app ships without but the type allows.
+    description: RELEASES[0]?.headline ?? 'Recent changes to the app',
+    icon: <SoundOutlined />,
   },
   {
     key: 'import',

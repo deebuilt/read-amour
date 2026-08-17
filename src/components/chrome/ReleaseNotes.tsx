@@ -9,9 +9,12 @@ import styles from './ReleaseNotes.module.css'
  * when they did. Two entry points, one story — which is why both read from the
  * same `RELEASES` array rather than each holding their own copy of the text.
  *
- * It lives in About because that panel is the app's front door while reading
- * like a footnote, and giving it something worth opening is a better fix for
- * that than relabelling it.
+ * It is its own destination under More. It lived inside About until 2026-08-17,
+ * on the reasoning that About was the app's front door and deserved something
+ * worth opening — which had it backwards. About reads as small print, so putting
+ * the changelog inside it did not lift About, it buried the notes: two taps and
+ * a scroll, under a heading that gives a reader no reason to look. What's new
+ * and what this app is are separate questions, and only one of them changes.
  *
  * Every release is listed rather than only the newest. The list is short, it is
  * the only record of the app's history a reader can see, and truncating it would

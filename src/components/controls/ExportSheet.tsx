@@ -1,6 +1,11 @@
 import { PlayCircleOutlined, SaveOutlined, ShareAltOutlined } from '@ant-design/icons'
 import { Modal, Slider, Typography } from 'antd'
-import { MAX_DURATION_MS, MIN_DURATION_MS } from '../../export/posterVideo'
+import {
+  MAX_DURATION_MS,
+  MIN_DURATION_MS,
+  TRANSITIONS,
+  type TransitionId,
+} from '../../export/posterVideo'
 import styles from './ExportSheet.module.css'
 
 /**
@@ -45,6 +50,9 @@ interface ExportSheetProps {
   /** How long the video runs, in milliseconds. The reader's choice. */
   durationMs: number
   onDurationChange: (durationMs: number) => void
+  /** How each cover arrives. */
+  transition: TransitionId
+  onTransitionChange: (transition: TransitionId) => void
   /** Covers on the poster, so the control can say what the pace works out to. */
   coverCount: number
   /** True while a poster is being rendered, so the sheet can show which. */
@@ -65,6 +73,8 @@ export function ExportSheet({
   videoBlockedBy,
   durationMs,
   onDurationChange,
+  transition,
+  onTransitionChange,
   coverCount,
   busy,
   videoProgress,
@@ -194,6 +204,49 @@ export function ExportSheet({
                   aria-label="How long the animation runs, in seconds"
                 />
                 <Typography.Text className={styles.hint}>{pace}</Typography.Text>
+              </div>
+
+              {/*
+                How each cover arrives, beneath the length it shares a timeline
+                with. Both are settings on the animation and neither is a
+                setting on a row, so they sit together above the two actions —
+                the same reasoning that moved the slider out of the flat list.
+
+                Named options rather than a preview of each. A four-up row of
+                looping animations in a modal is a distraction while choosing,
+                and the real preview is the export itself, which takes seconds.
+                The label plus one line of description is enough to pick from,
+                and picking wrong costs one more export.
+              */}
+              <div className={styles.transition}>
+                <Typography.Text className={styles.label}>Transition</Typography.Text>
+                <div
+                  className={styles.transitionOptions}
+                  role="radiogroup"
+                  aria-label="How each cover appears"
+                >
+                  {TRANSITIONS.map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={option.id === transition}
+                      className={[
+                        styles.transitionOption,
+                        option.id === transition ? styles.transitionSelected : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
+                      onClick={() => onTransitionChange(option.id)}
+                      disabled={isBusy}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+                <Typography.Text className={styles.hint}>
+                  {TRANSITIONS.find((option) => option.id === transition)?.description}
+                </Typography.Text>
               </div>
 
               {/*
