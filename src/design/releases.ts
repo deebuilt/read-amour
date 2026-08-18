@@ -55,6 +55,15 @@ export interface Release {
 
 export const RELEASES: readonly Release[] = [
   {
+    version: '0.4.6',
+    date: '2026-08-17',
+    headline: 'Adding a book by hand no longer requires a cover.',
+    changes: [
+      'A book you add by hand needs a title and author. The cover is now optional.',
+      'You can add the cover later from the book’s details.',
+    ],
+  },
+  {
     version: '0.4.3',
     date: '2026-08-17',
     headline: 'The app updates itself now.',

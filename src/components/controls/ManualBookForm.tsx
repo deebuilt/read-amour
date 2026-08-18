@@ -9,8 +9,23 @@ import styles from './ManualBookForm.module.css'
 /**
  * Add a book the catalogue does not have.
  *
- * The cover is the only required field beyond a title, because the poster is
- * made of covers — a manual book without one would place an empty rectangle.
+ * Title and author are required; the cover is not. That split is the whole
+ * shape of this form, and each half has a reason.
+ *
+ * The cover used to be required, on the reasoning that the poster is made of
+ * covers — but a coverless book already renders as a tinted plate carrying its
+ * own title and author, which is exactly what a coverless search result gets.
+ * Requiring one here meant a book the catalogue had never heard of could not go
+ * on a poster at all unless the reader happened to have the artwork to hand. It
+ * can be added later, from the book's details.
+ *
+ * The author is required because the plate is the reason: with no cover, the
+ * title and author *are* the artwork of that slot, so a missing author is a
+ * visible hole rather than an absent field. It was never validated before, and
+ * `createManualBook` defaulted it to `'Unknown'` — which is a genuine sentinel
+ * when a catalogue record lacks an author, and a fabrication when the reader is
+ * standing right there able to type it.
+ *
  * Date and rating are optional and exist so a hand-added book can carry the
  * same detail a Goodreads row does, which the book list then reads back.
  */
@@ -73,23 +88,22 @@ export function ManualBookForm({ onSelect }: ManualBookFormProps) {
       setError('Give the book a title.')
       return
     }
-    if (!cover) {
-      setError('Choose a cover image — the poster is made of covers.')
+    if (!author.trim()) {
+      setError('Give the book an author.')
       return
     }
-
     setIsSaving(true)
     setError(undefined)
     try {
       const book = await createManualBook({
         title,
         author,
-        coverFile: cover.file,
+        coverFile: cover?.file,
         dateRead,
         rating: rating > 0 ? rating : undefined,
       })
       // The blob now lives in IndexedDB, so the preview URL has no further job.
-      URL.revokeObjectURL(cover.previewUrl)
+      if (cover) URL.revokeObjectURL(cover.previewUrl)
       setCover(undefined)
       setTitle('')
       setAuthor('')
@@ -106,8 +120,9 @@ export function ManualBookForm({ onSelect }: ManualBookFormProps) {
   return (
     <div className={styles.root}>
       <Typography.Paragraph style={{ fontSize: fontSize.sm, color: color.inkSoft }}>
-        For books the catalogue has not caught up with yet. Screenshot the cover,
-        or save it from anywhere, and fill in the rest.
+        For books the catalogue has not caught up with yet. Title and author are
+        all it needs — add the cover now if you have it, or later from the
+        book's details.
       </Typography.Paragraph>
 
       <div className={styles.coverRow}>
@@ -123,6 +138,7 @@ export function ManualBookForm({ onSelect }: ManualBookFormProps) {
               <span className={styles.coverPlaceholder}>
                 <span className={styles.coverPlaceholderMark}>+</span>
                 <span className={styles.coverPlaceholderText}>Cover</span>
+                <span className={styles.coverPlaceholderHint}>Optional</span>
               </span>
             )}
           </button>

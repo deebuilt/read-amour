@@ -14,13 +14,27 @@ import type { Book } from '../types/domain'
  * result takes. That matters: the export renders from IndexedDB blobs, so a
  * cover that arrived any other way (a remote URL, a data URI pasted in) would
  * either taint the canvas or bloat the saved board. One path in, one path out.
+ *
+ * The cover is optional, for the same reason a coverless catalogue hit is worth
+ * taking: the title and author are the tedious part to type, and `PosterSlot`
+ * already draws a coverless book as a tinted plate carrying its own type. A
+ * cover can be added later through `BookDetailsEditor`.
  */
 
 export interface ManualBookInput {
   title: string
+  /**
+   * Required at the form, not defaulted here.
+   *
+   * `'Unknown'` is a real sentinel elsewhere — Open Library, Apple and the
+   * Goodreads importer all emit it for a record that genuinely has no author,
+   * and `stats.ts` and `isConfidentMatch()` both test for it. Defaulting to it
+   * here would have manufactured that state from a reader who was sitting right
+   * there and could have typed the name, which is why the form asks instead.
+   */
   author: string
-  /** The user's own file. Required — a manual book with no cover is a blank slot. */
-  coverFile: File
+  /** The user's own file. Optional — a coverless book renders as a tinted plate. */
+  coverFile?: File
   /** ISO `YYYY-MM-DD`. Optional; a poster does not need it. */
   dateRead?: string
   /** 1–5. Undefined means unrated, matching the Goodreads encoding. */
@@ -45,12 +59,14 @@ export function manualBookId(): string {
  * permanently empty slot with no way to tell why.
  */
 export async function createManualBook(input: ManualBookInput): Promise<Book> {
-  const coverBlobKey = await storeUploadedImage(input.coverFile, 'manual-cover')
+  const coverBlobKey = input.coverFile
+    ? await storeUploadedImage(input.coverFile, 'manual-cover')
+    : undefined
 
   const book: Book = {
     id: manualBookId(),
     title: input.title.trim(),
-    author: input.author.trim() || 'Unknown',
+    author: input.author.trim(),
     isbn13: input.isbn13?.trim() || undefined,
     coverBlobKey,
     dateRead: input.dateRead,
@@ -61,6 +77,6 @@ export async function createManualBook(input: ManualBookInput): Promise<Book> {
   await saveBook(book)
   // The image records its owner too, so a hand-uploaded cover can be matched
   // back to its book if the book's own link is ever lost.
-  await tagImageOwner(coverBlobKey, book)
+  if (coverBlobKey) await tagImageOwner(coverBlobKey, book)
   return book
 }

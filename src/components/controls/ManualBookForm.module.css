@@ -55,6 +55,13 @@
   font-size: 12px;
 }
 
+/* Quieter than the label above it: the picker still reads as the thing to do,
+   the hint only answers "do I have to?" without competing for the tap. */
+.coverPlaceholderHint {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
 .fields {
   display: flex;
   flex-direction: column;
