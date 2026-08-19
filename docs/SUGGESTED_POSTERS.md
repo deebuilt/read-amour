@@ -635,33 +635,50 @@ its ISBN, offline, rather than sent to Open Library.
 
 ### The field
 
-One boolean on `Book`, no status enum — the state is binary and a second value
-would be inventing a distinction that does not exist.
+One boolean on `Book`. **No status enum** — the state is binary, and a second
+value would invent a distinction that does not exist.
 
 ```ts
-/** Whether the reader ever put this book on a poster. */
-chosen?: boolean
+/**
+ * Whether this book arrived in a CSV and was never placed on a poster.
+ *
+ * Set on the file drop, cleared the moment the book lands on a poster. Books
+ * added by search or by hand never carry it.
+ */
+imported?: boolean
 ```
 
-**Named for the reader's act, not for provenance, and that is load-bearing.**
-The first instinct was `imported: true/false`, which breaks on the case that
-matters: a reader imports a CSV *and then taps June*. Those books are both
-imported and in use, so `imported` cannot answer "is this sitting unused" — and
-the June books would be swept by the very cleanup the field exists to enable. It
-also duplicates `source`, which already records where a book came from.
+**Settled 2026-08-18, and the reasoning matters because it was argued the wrong
+way first.** The proposal was to call it `chosen`, on the theory that a reader
+might import a CSV *and then* place those books, making `imported` unable to
+answer "is this sitting unused."
 
-`chosen` is the fact nothing currently stores.
+Ruthnie corrected that, and she is right: **selecting a month always places it.**
+`handleUseMonth` creates the board and fills it in one call — there is no path
+that imports a month without making its poster. So "imported" and "never placed"
+describe exactly the same set of books, and the extra name bought nothing.
 
-- CSV drop → written without it, which reads as `false`.
-- Placed on a poster, by any path → `chosen: true`.
-- Stats and suggestions → chosen books only.
-- Cleanup → `source === 'goodreads' && !chosen` is a one-line query.
+The rows that need marking enter one step earlier than the argument assumed.
+`saveBooks(parsed.books)` runs on the **file drop**, before the month list
+renders — so every month in the file is written, and only the months tapped
+become posters. The rest are residue. That is the whole bug.
 
-**The backfill is the part that must be right.** Every book already in storage
-predates the field, so a naive rollout reads the whole existing library as
-unchosen and the first cleanup deletes books that are on posters. A one-time
-migration walks the boards, marks every book on one `chosen: true`, and runs at
-startup beside `repairCoverLinks()` — a no-op once done.
+- CSV drop → every parsed book written with `imported: true`.
+- Placed on a poster, by any path → the flag is cleared.
+- Stats and suggestions → books without the flag.
+- Cleanup → `imported === true` is the whole query.
+
+**The backfill is the part that must be right, and it runs in the safe
+direction.** Every book already in storage predates the field, so the migration
+decides what the existing library means. It must mark `imported: true` only for
+books that are **on no poster at all** — walk the boards, collect every book id
+in use, and flag the rest. Getting this backwards, or defaulting the field to
+`true` for everything, means the first cleanup deletes books that are on
+posters. Runs at startup beside `repairCoverLinks()`; a no-op once done.
+
+A book on no poster that came from search or manual entry is a real edge: it was
+deliberately added and then removed from every poster. The migration should key
+on `source === 'goodreads'` as well, so only CSV rows are ever flagged.
 
 ### What this unlocks, in order
 
@@ -671,7 +688,7 @@ startup beside `repairCoverLinks()` — a no-op once done.
    whole library, unadopted rows included. Verify rather than assume.
 2. **"Clear books I never used."** Impossible today at any level: the store
    cannot separate them, so even picking through IndexedDB by hand means judging
-   records by eye. With `chosen` it is a query and a button, and it belongs in
+   records by eye. With `imported` it is a query and a button, and it belongs in
    About beside the backup controls.
 3. **Search checks the reader's own history first.** The reuse Ruthnie asked
    for: a title already in the library is offered from storage — instantly,
@@ -680,11 +697,12 @@ startup beside `repairCoverLinks()` — a no-op once done.
 
 ### The open edge
 
-**What happens when a chosen book is removed from every poster.** Adoption is
-easy to set and ambiguous to clear: is a book she placed and later took off
-still chosen? Leaving it `true` is a one-way flag that slowly stops meaning
-anything; clearing it makes a cleanup delete books that were deliberately
-placed once. Not resolved. Decide before building, not during.
+**What happens when a book is removed from every poster.** The flag is cleared
+on placement and never re-set, so a book taken off every poster stays unflagged
+and survives cleanup. That is the safe direction and probably correct — it was
+deliberately placed once. The alternative, re-flagging it, would make the
+cleanup able to delete something the reader chose by hand. Confirm before
+building, but the default is: **never re-set the flag.**
 
 ---
 
