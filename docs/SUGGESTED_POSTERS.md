@@ -846,10 +846,48 @@ flight. Stats hid the same race behind timing — that panel is opened long afte
 startup, so its read won in practice — which is exactly the kind of bug that
 comes back as "it only happens sometimes."
 
-**Not built, deliberately:** search checking the reader's own history first
-(item 3 of "what this unlocks"). It is a genuinely good payoff and it is a
-change to the search path rather than to the import flag, so it wants its own
-session against `api/bookSearch.ts`.
+**Search now checks the library first** (item 3 of "what this unlocks").
+`api/librarySearch.ts` matches stored books on the **full** query including any
+trailing fragment — a local prefix test is exact, where the same fragment sent
+to a catalogue derails it. Hits lead the merged list and *replace* the catalogue
+row for the same book rather than sitting beside it, since the same title twice
+reads as a bug and makes the reader choose between two rows that mean the same
+thing. `matchKey` already normalised title-plus-surname, so the dedupe reuses it.
+
+Selecting a library hit **reuses the stored record** instead of rebuilding one
+from the catalogue row. This is the part that would have been a silent bug: the
+stored book carries the reader's own rating, finish date and resolved cover, and
+writing a fresh record under a catalogue id would have duplicated the book and
+thrown all of that away. It also clears the imported flag, so finding a book by
+search is another way of adopting it.
+
+### Shipped 2026-08-18 — the rest of the section
+
+**StoryGraph import.** `import/shared.ts` now holds everything format-agnostic
+— the ISBN and date cleaning, the rating rounding, the month grouping, the
+result shape — and each site supplies a row mapper and a "is this a finished
+book" test. `import/parse.ts` detects the format from the header row and picks
+between them. Verified against real exports of both: StoryGraph gives 56 books
+from 60 rows, skipping exactly the 2 currently-reading, 1 to-read and 1
+did-not-finish; Goodreads gives 92 from 109 with ratings 1-5 intact.
+
+`BookSource` gained `'storygraph'`, and `SOURCE_LABEL` names all four for the
+screen. Sources are **shown on the group rows rather than used to split them** —
+a reader who has used both sites will have the same book from both exports, and
+the source is the only field that explains a title appearing twice. Grouping by
+source instead would break date order and list one month twice.
+
+**Cover strips, in three places.** `CoverStrip` is one component used by the
+suggestions panel, the import groups and the posters drawer. It was extracted
+from the suggestions panel rather than copied — the answer to "what is in this
+row?" is the covers, everywhere. `useBoardCovers` resolves the books for every
+saved poster in one read, since the posters drawer holds boards that carry book
+ids and no records.
+
+**Per-group clear.** Each import row can discard its own unplaced books, beside
+the button that clears them all. The count is the books it would *actually*
+delete rather than the row's total — a group can hold books already on a poster,
+and those are never touched.
 
 ### The open edge
 
@@ -861,6 +899,90 @@ cleanup able to delete something the reader chose by hand. Confirm before
 building, but the default is: **never re-set the flag.**
 
 ---
+
+## How often a suggestion appears — raised 2026-08-19, not yet built
+
+Ruthnie: *"How often does the poster ideas generate — daily, or is there an
+increment, or is it just one and done? After that first deployment, if you don't
+use them, nothing else comes up."*
+
+### What actually happens today
+
+There is **no schedule and no decay.** `useSuggestions` recomputes from the whole
+library on mount and on `reload()`, and `suggestPosters` is a pure function of
+the books, the clock, and the dismissed set. So a suggestion is not "generated"
+once — it is derived every time the app opens, and it persists until one of
+three things changes it:
+
+- **The library changes.** New books can push a generator over its minimum, or
+  change who the most-read author is.
+- **The reader dismisses it.** `dismissedSuggestions` is localStorage, so that
+  is permanent and survives launches.
+- **Keeping it dismisses it.** A poster that now exists stops being offered.
+
+The consequence is the thing worth naming: **a reader who neither uses nor
+dismisses a suggestion sees the same rows forever.** Nothing rotates, and the
+list does not refresh itself with time. Ruthnie's reading of it is correct.
+
+### Why that is not simply a bug
+
+The suggestions are *derived facts*, not a feed. "Nine books you gave five
+stars" stays true until the library changes, and hiding it on a timer would
+mean the app knew something and stopped saying it. A rotation would also fight
+the dismissal design — dismissal is the reader's way of saying "not this," and
+a row that vanished on its own would make that control look broken.
+
+### What is worth building, in order
+
+1. **A time-anchored generator, so the set changes as the year does.** The
+   existing ones are anchored to *the current year* and *the most-read author*,
+   both of which move slowly. A "this month" or "a year ago today" generator
+   would produce genuinely new rows on a normal Tuesday without any rotation
+   machinery. This is the honest version of "how often does it refresh": make a
+   generator whose answer depends on the date.
+2. **Dismissals that expire for time-based ideas.** `five-stars-2026` should
+   probably come back in 2027 as `five-stars-2027` — which it already does,
+   since the id carries the year. But `best-month` and `top-author` re-offer the
+   same idea indefinitely once dismissed. An id that carried its evidence (the
+   author's name, the month) would let a *different* answer re-ask.
+3. **A quiet mark when something is genuinely new**, rather than a permanent
+   count. The button already shows a dot whenever any suggestion exists, so it
+   is lit constantly for a reader who ignores them — which trains exactly the
+   blindness the plan warned about.
+
+None of this is urgent and all of it is cheap. What it needs first is a decision
+about whether suggestions are *facts* (today's design, stable until the evidence
+changes) or a *feed* (something that must feel alive). The doc's position is the
+former, and items 1 and 2 improve it without becoming the latter.
+
+## Row actions want a menu, not a pair of buttons — raised 2026-08-19
+
+Ruthnie, on the posters drawer and the import lists both:
+
+> "I hate two buttons sitting side by side. I believe two buttons should always
+> be in a drop down menu."
+
+Two places have the problem. The posters drawer row carries **rename** and
+**delete** next to each other, and the import list row carries **Use** and
+**delete** — which is the worse pair, since one is the ordinary action and the
+other is destructive, sitting a thumb's width apart on a phone.
+
+**A kebab is the wanted shape and it collides with the row itself.** The whole
+posters card is already a button that switches to that poster, so a menu inside
+it means a tap target inside a tap target — which is why this is its own session
+rather than a quick change. What it needs is the hit areas made exact first: the
+card opens the poster, a kebab at its edge opens the actions, and neither
+swallows the other.
+
+**Swipe-to-delete was considered and argued against.** It is invisible — nothing
+on screen says a row swipes, and this is a panel someone opens occasionally
+rather than a mail app people use daily. It also fights the bottom drawer, where
+a horizontal drag inside a vertically-scrolling sheet is where these get fiddly.
+And desktop gets nothing from it, so the icon has to stay regardless, leaving two
+delete paths. If it is ever built, build it as an accelerant on top of the menu,
+never as the only way.
+
+Until then the pair stands. It is tacky, in Ruthnie's word, and it is not wrong.
 
 ## Also raised 2026-08-18
 

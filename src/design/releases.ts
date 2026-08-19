@@ -55,6 +55,19 @@ export interface Release {
 
 export const RELEASES: readonly Release[] = [
   {
+    version: '0.7.0',
+    date: '2026-08-19',
+    headline: 'Import now includes StoryGraph.',
+    changes: [
+      'Import a StoryGraph CSV export file.',
+      'Books included in separate imports are stored once, to avoid duplication.',
+      'Tap a list in Import to see the books it contains.',
+      'Saved posters now show book covers.',
+      'Poster search checks imported books before looking online.',
+      "Delete any list you don't want.",
+    ],
+  },
+  {
     version: '0.6.0',
     date: '2026-08-18',
     headline: 'Imported files are stored.',

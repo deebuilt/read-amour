@@ -159,3 +159,13 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/*
+ * Marks a result the reader already has. Quiet — it explains why the row sits
+ * at the top, and it is not a call to action.
+ */
+.owned {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--ra-accent);
+}

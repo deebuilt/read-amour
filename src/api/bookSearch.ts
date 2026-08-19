@@ -1,4 +1,5 @@
 import { searchAppleBooks } from './appleBooks'
+import { searchLibrary } from './librarySearch'
 import { searchBooks } from './openLibrary'
 import type { CoverSearchResult } from '../types/domain'
 
@@ -149,7 +150,17 @@ export async function searchAllBooks(
     }
   }
 
-  const [openLibrary, apple] = await Promise.all([
+  /*
+   * The reader's own books are searched alongside the catalogues, on the FULL
+   * query rather than on `search` — a stored book is matched locally, so a
+   * trailing fragment narrows it exactly instead of derailing it the way it
+   * would derail a catalogue query.
+   *
+   * Reading IndexedDB cannot fail the way a fetch can, and it is not abortable,
+   * so it needs no `tolerate` wrapper.
+   */
+  const [library, openLibrary, apple] = await Promise.all([
+    searchLibrary(query),
     tolerate(searchBooks(search, signal)),
     tolerate(searchAppleBooks(search, signal)),
   ])
@@ -204,6 +215,44 @@ export async function searchAllBooks(
   absorb(apple, true)
 
   /*
+   * The reader's own copies go in front, and replace the catalogue row for the
+   * same book.
+   *
+   * In front because a book already in the library is the strongest possible
+   * match for what was typed: the reader has read it. Replacing rather than
+   * appending because the alternative is the same title twice in one list, once
+   * from storage and once from Open Library, which reads as a bug and makes the
+   * reader choose between two rows that mean the same thing.
+   *
+   * A stored book with no cover still wins the slot. It carries the ISBN and
+   * the reader's own rating and date, which is the record worth keeping — and a
+   * cover can still be fetched for it later.
+   */
+  const fromLibrary: Entry[] = []
+  library.forEach((result, rank) => {
+    const existing = byKey.get(matchKey(result))
+    if (existing !== undefined) {
+      // Keep the catalogue's artwork if the stored copy has none of its own.
+      const current = ranked[existing]
+      const merged: CoverSearchResult = {
+        ...result,
+        coverId: result.coverId ?? current.result.coverId,
+        appleArtworkUrl: result.appleArtworkUrl ?? current.result.appleArtworkUrl,
+        isbn13: result.isbn13 ?? current.result.isbn13,
+      }
+      // Blank the catalogue row in place; the library row carries it now.
+      ranked[existing] = { ...current, result: merged, rank: Number.MAX_SAFE_INTEGER }
+      fromLibrary.push({ result: merged, rank, fromApple: false })
+      return
+    }
+    fromLibrary.push({ result, rank, fromApple: false })
+  })
+
+  const withoutReplaced = ranked.filter((entry) => entry.rank !== Number.MAX_SAFE_INTEGER)
+  ranked.length = 0
+  ranked.push(...withoutReplaced)
+
+  /*
    * Interleave by rank rather than concatenating.
    *
    * Appending Apple's list after Open Library's threw away Apple's ranking
@@ -216,8 +265,7 @@ export async function searchAllBooks(
    * behind the other's #1. Rank leads, and a tie falls to the row that can
    * actually fill a slot.
    */
-  const ordered = ranked
-    .sort((a, b) => {
+  const ordered = [...fromLibrary, ...ranked.sort((a, b) => {
       if (a.rank !== b.rank) return a.rank - b.rank
 
       const coverGap = Number(hasCover(b.result)) - Number(hasCover(a.result))
@@ -226,8 +274,7 @@ export async function searchAllBooks(
       // Open Library first at equal rank: it carries the ISBN and the print
       // edition, which is the better record when both describe the same book.
       return Number(a.fromApple) - Number(b.fromApple)
-    })
-    .map((entry) => entry.result)
+    })].map((entry) => entry.result)
 
   /*
    * Narrow by the half-typed word, locally.

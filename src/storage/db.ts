@@ -1,4 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
+import { bookIdentity } from '../import/shared'
 import type { Board, Book, StoredImage } from '../types/domain'
 
 /**
@@ -188,6 +189,65 @@ export async function saveBooks(books: readonly Book[]): Promise<void> {
 }
 
 /**
+ * Fold newly imported rows into books the library already has.
+ *
+ * A reader who logs on both sites exports the same book twice, under two ids —
+ * Goodreads keys on its own `Book Id`, StoryGraph on an ISBN — so nothing in
+ * storage recognised them as one book. Importing a StoryGraph library over a
+ * Goodreads one wrote a second record for every overlapping title: in a real
+ * pair of exports, 52 of 56 StoryGraph books were already present, and the
+ * library held 148 records for 96 books. A group would then read "4 books" and
+ * place the same two covers twice on one poster.
+ *
+ * So an incoming row that matches a stored book by `bookIdentity` is merged
+ * into it rather than saved beside it. The stored id wins, because posters
+ * point at it — rewriting identity here would strand every slot that already
+ * held the book.
+ *
+ * What the incoming row can still contribute is anything the stored record
+ * lacks: a finish date, a rating, an ISBN. It never overwrites a value the
+ * reader already has, so re-importing cannot quietly change a rating.
+ */
+export async function mergeImportedBooks(incoming: readonly Book[]): Promise<{
+  added: number
+  merged: number
+}> {
+  const db = await getDB()
+  const existing = await db.getAll('books')
+
+  const byIdentity = new Map<string, Book>()
+  existing.forEach((book) => {
+    const identity = bookIdentity(book)
+    // First writer wins, so an id a poster already points at is the one kept.
+    if (!byIdentity.has(identity)) byIdentity.set(identity, book)
+  })
+
+  const fresh: Book[] = []
+  const folded: Book[] = []
+
+  incoming.forEach((book) => {
+    const match = byIdentity.get(bookIdentity(book))
+    if (!match) {
+      fresh.push(book)
+      // So two rows of the same book inside ONE file also collapse.
+      byIdentity.set(bookIdentity(book), book)
+      return
+    }
+
+    folded.push({
+      ...match,
+      dateRead: match.dateRead ?? book.dateRead,
+      rating: match.rating ?? book.rating,
+      isbn13: match.isbn13 ?? book.isbn13,
+      isbn10: match.isbn10 ?? book.isbn10,
+    })
+  })
+
+  await saveBooks([...fresh, ...folded])
+  return { added: fresh.length, merged: folded.length }
+}
+
+/**
  * Clear the imported flag on books that have just been placed on a poster.
  *
  * Placement is what "adopting" a book means, so it is the one event that turns
@@ -234,6 +294,84 @@ export async function deleteBooks(ids: readonly string[]): Promise<void> {
   const tx = db.transaction('books', 'readwrite')
   await Promise.all(ids.map((id) => tx.store.delete(id)))
   await tx.done
+}
+
+/**
+ * Collapse books stored twice under two sites' ids.
+ *
+ * `mergeImportedBooks` stops new duplicates arriving; it cannot touch pairs
+ * already written, and an import done before it existed leaves them. This runs
+ * once at startup and repairs those.
+ *
+ * Which copy survives is not arbitrary: a book **on a poster** always wins,
+ * because slots point at ids and deleting the wrong one would blank a poster.
+ * Where neither is placed, the older record wins, since it is the one anything
+ * else in storage is likelier to reference. The survivor absorbs any date,
+ * rating or ISBN the loser had and the loser is deleted.
+ *
+ * A no-op on a library that has only ever used one site.
+ */
+export async function mergeDuplicateBooks(): Promise<number> {
+  const db = await getDB()
+  const [books, boards] = await Promise.all([db.getAll('books'), db.getAll('boards')])
+
+  const placed = new Set<string>()
+  boards.forEach((board) => {
+    board.slots.forEach((slot) => {
+      if (slot.bookId) placed.add(slot.bookId)
+    })
+  })
+
+  const groups = new Map<string, Book[]>()
+  books.forEach((book) => {
+    const identity = bookIdentity(book)
+    const bucket = groups.get(identity)
+    if (bucket) bucket.push(book)
+    else groups.set(identity, [book])
+  })
+
+  const keep: Book[] = []
+  const drop: string[] = []
+
+  groups.forEach((bucket) => {
+    if (bucket.length < 2) return
+
+    // A placed copy first, then whichever was stored first.
+    const ordered = [...bucket].sort((a, b) => {
+      const placedGap = Number(placed.has(b.id)) - Number(placed.has(a.id))
+      if (placedGap !== 0) return placedGap
+      return a.id.localeCompare(b.id)
+    })
+
+    const [survivor, ...losers] = ordered
+    let merged = survivor
+
+    losers.forEach((loser) => {
+      merged = {
+        ...merged,
+        dateRead: merged.dateRead ?? loser.dateRead,
+        rating: merged.rating ?? loser.rating,
+        isbn13: merged.isbn13 ?? loser.isbn13,
+        isbn10: merged.isbn10 ?? loser.isbn10,
+        coverBlobKey: merged.coverBlobKey ?? loser.coverBlobKey,
+        coverId: merged.coverId ?? loser.coverId,
+        // Adopted if either copy was: placement is not undone by a merge.
+        imported: merged.imported === false || loser.imported === false ? false : merged.imported,
+      }
+      // Never delete a copy a poster points at. If both are placed, both stay
+      // and the merge is abandoned for that pair — a blanked slot is far worse
+      // than a book listed twice.
+      if (!placed.has(loser.id)) drop.push(loser.id)
+    })
+
+    keep.push(merged)
+  })
+
+  if (keep.length === 0) return 0
+
+  await saveBooks(keep)
+  await deleteBooks(drop)
+  return drop.length
 }
 
 /**

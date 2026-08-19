@@ -7,6 +7,7 @@ import {
   listBoards,
   pruneOrphanedImages,
   ensureImportedFlagBackfilled,
+  mergeDuplicateBooks,
   repairCoverLinks,
   saveBoard,
   shrinkStoredUploads,
@@ -84,6 +85,11 @@ export function useBoard(): UseBoardResult {
       // background would let the first read of the library count rows the
       // migration is in the middle of marking, which is the bug being fixed.
       await ensureImportedFlagBackfilled()
+
+      // Collapse books stored twice under two sites' ids. After the flag
+      // migration, so a merged pair carries a decided flag rather than one the
+      // backfill is about to overwrite.
+      await mergeDuplicateBooks()
 
       const boards = await listBoards()
       if (cancelled) return

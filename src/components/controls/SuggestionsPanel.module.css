@@ -80,55 +80,6 @@
  * holds, so a 20-book suggestion does not become four times the height of a
  * 2-book one and push the rest of the list off the screen.
  */
-.strip {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-  min-width: 0;
-  overflow-x: auto;
-  /* No scrollbar chrome on a strip this short; it is a preview, not a control. */
-  scrollbar-width: none;
-}
-
-.strip::-webkit-scrollbar {
-  display: none;
-}
-
-.thumb {
-  display: block;
-  width: 30px;
-  aspect-ratio: 2 / 3;
-  flex: none;
-  border-radius: 2px;
-  overflow: hidden;
-  background: var(--ra-paper-raised);
-}
-
-.cover {
-  display: block;
-  width: 100%;
-  /* Explicit, so an oversized source image contributes no intrinsic width. */
-  max-width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-/* A cover not yet fetched. Holds the space rather than leaving a gap. */
-.blank {
-  display: block;
-  width: 100%;
-  height: 100%;
-  border: 1px solid var(--ra-line);
-  border-radius: 2px;
-}
-
-.more {
-  flex: none;
-  padding-inline: 4px;
-  font-size: 11px;
-  color: var(--ra-ink-faint);
-}
-
 /* Thumb-sized and fixed at the end of the row, matching `PostersPanel`. */
 .dismiss {
   flex: none;

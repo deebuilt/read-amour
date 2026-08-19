@@ -49,7 +49,22 @@ export interface Book {
   imported?: boolean
 }
 
-export type BookSource = 'goodreads' | 'search' | 'manual'
+/**
+ * Where a book came from.
+ *
+ * Worth showing the reader rather than keeping as bookkeeping: someone who has
+ * used both Goodreads and StoryGraph will have the same book from both exports,
+ * and the source is the only field that explains why a title appears twice.
+ */
+export type BookSource = 'goodreads' | 'storygraph' | 'search' | 'manual'
+
+/** How a source is named on screen. */
+export const SOURCE_LABEL: Record<BookSource, string> = {
+  goodreads: 'Goodreads',
+  storygraph: 'StoryGraph',
+  search: 'Search',
+  manual: 'Added by hand',
+}
 
 /**
  * Where a poster's background comes from.
@@ -312,4 +327,14 @@ export interface CoverSearchResult {
   appleArtworkUrl?: string
   isbn13?: string
   firstPublishYear?: number
+  /**
+   * The reader's own copy of this book, when the library already holds it.
+   *
+   * A CSV import writes every row to storage, so a book imported two years ago
+   * is sitting there with its ISBN and often its cover — and searching for it
+   * used to go to Open Library anyway and hand back a stranger's record of the
+   * same book. Matching the stored one instead is instant, works offline, and
+   * keeps the cover already fetched for it.
+   */
+  libraryBookId?: string
 }

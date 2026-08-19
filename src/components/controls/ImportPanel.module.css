@@ -46,9 +46,7 @@
 
 .month {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  flex-direction: column;
   padding: 10px 14px;
   border: 1px solid var(--ra-line);
   border-radius: 4px;
@@ -58,8 +56,17 @@
 .monthMeta {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 1px;
   min-width: 0;
+  /* A button, so it needs its chrome removed rather than added. */
+  flex: 1;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
 .monthName {
@@ -80,4 +87,85 @@
 .clear {
   padding-top: 8px;
   border-top: 1px solid var(--ra-line);
+}
+
+/*
+ * The name and count on the left, the actions on the right.
+ *
+ * A cover strip was tried here and removed: covers are fetched when a list is
+ * used, so an unused list has none by definition and every plate rendered
+ * blank. The strip earns its place in the posters drawer, where the books are
+ * placed and their covers exist.
+ */
+.monthTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.monthActions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+
+.chevron {
+  font-size: 10px;
+  margin-left: 6px;
+  color: var(--ra-ink-faint);
+  transition: transform 0.15s ease;
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+/*
+ * The books in a list, revealed on tap.
+ *
+ * Covers would be the better answer and are not available here: they are
+ * fetched when a list is used, so an unused list has none by definition and
+ * every plate rendered blank. The titles cost nothing — they are already in
+ * storage — and they answer the same question.
+ *
+ * Capped and scrolled rather than left to run: a list can hold a dozen books
+ * and the drawer is a phone screen, so an open list must not push the ones
+ * below it out of reach.
+ */
+.titles {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--ra-line);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 168px;
+  overflow-y: auto;
+}
+
+.title {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.titleName {
+  font-size: 13px;
+  color: var(--ra-ink);
+  /* One line each, so a long title cannot turn the list into paragraphs. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.titleAuthor {
+  font-size: 11px;
+  color: var(--ra-ink-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

@@ -75,8 +75,8 @@ const ROWS: readonly MoreRow[] = [
   },
   {
     key: 'import',
-    label: 'Import from Goodreads',
-    description: 'Bring a CSV export across',
+    label: 'Import',
+    description: 'From Goodreads or StoryGraph',
     icon: <UploadOutlined />,
   },
   {

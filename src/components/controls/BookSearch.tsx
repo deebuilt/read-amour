@@ -4,7 +4,7 @@ import { PictureOutlined } from '@ant-design/icons'
 import { coverUrl } from '../../api/openLibrary'
 import { searchAllBooks } from '../../api/bookSearch'
 import { ensureAppleCoverStored, ensureCoverStored } from '../../api/covers'
-import { saveBook, tagImageOwner } from '../../storage/db'
+import { getBook, markBooksPlaced, saveBook, tagImageOwner } from '../../storage/db'
 import { color, fontSize, space } from '../../design/tokens'
 import type { Book, CoverSearchResult } from '../../types/domain'
 import styles from './BookSearch.module.css'
@@ -82,6 +82,27 @@ export function BookSearch({ onSelect }: BookSearchProps) {
       setPendingKey(result.key)
 
       try {
+        /*
+         * A book the reader already has is taken from storage, not rebuilt.
+         *
+         * The stored record carries their own rating and finish date and the
+         * cover already fetched for it — none of which a catalogue row knows.
+         * Rebuilding it here would write a second record under a catalogue id,
+         * duplicating the book and losing everything the reader had recorded
+         * about it. Placement also clears the imported flag, which is what
+         * turns "sitting in an import" into "on a poster".
+         */
+        if (result.libraryBookId) {
+          const stored = await getBook(result.libraryBookId)
+          if (stored) {
+            await markBooksPlaced([stored.id])
+            onSelect(stored)
+            setQuery('')
+            setResults([])
+            return
+          }
+        }
+
         /*
          * A result may have an Open Library cover, an Apple one, or neither.
          * Neither is still worth taking: the title, author and ISBN are the
@@ -204,6 +225,11 @@ export function BookSearch({ onSelect }: BookSearchProps) {
                   {result.author}
                   {result.firstPublishYear ? ` · ${result.firstPublishYear}` : ''}
                 </span>
+                {/* Says why this row is first and what taking it will keep —
+                    the reader's own rating and finish date come with it. */}
+                {result.libraryBookId && (
+                  <span className={styles.owned}>In your library</span>
+                )}
               </span>
             </button>
           ))}

@@ -3,9 +3,11 @@ import { Button, DatePicker, Input, Popconfirm, Tooltip, Typography } from 'antd
 import { DeleteOutlined, EditOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { currentMonthKey, filledCount } from '../../domain/board'
+import { useBoardCovers } from '../../hooks/useBoardCovers'
 import { formatMonth, monthName } from '../../import/goodreads'
 import { color, fontSize } from '../../design/tokens'
 import type { Board } from '../../types/domain'
+import { CoverStrip } from './CoverStrip'
 import styles from './PostersPanel.module.css'
 
 /**
@@ -24,6 +26,9 @@ import styles from './PostersPanel.module.css'
 
 const MONTH_FORMAT = 'YYYY-MM'
 
+/** How many covers a poster row shows before the rest become a count. */
+const STRIP_LIMIT = 8
+
 interface PostersPanelProps {
   board: Board
   boards: Board[]
@@ -41,6 +46,7 @@ export function PostersPanel({
   onRename,
   onRemove,
 }: PostersPanelProps) {
+  const coversFor = useBoardCovers(boards)
   const [month, setMonth] = useState(currentMonthKey())
   const [title, setTitle] = useState('')
   /** Id of the poster being renamed in place, with its in-progress name. */
@@ -137,6 +143,9 @@ export function PostersPanel({
                     {count === 0 ? 'Empty' : `${count} ${count === 1 ? 'book' : 'books'}`}
                     {isActive && ' · open'}
                   </span>
+                  {/* Which books are on it. Telling a filled poster from an
+                      empty one used to mean opening each in turn. */}
+                  <CoverStrip books={coversFor.get(saved.id) ?? []} limit={STRIP_LIMIT} width={24} />
                 </button>
 
                 {/* Renaming here edits the poster's title, the same field the

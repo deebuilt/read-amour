@@ -37,7 +37,8 @@
 .poster {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  /* Roomier than the 2px it had, now that a cover strip sits under the meta. */
+  gap: 6px;
   flex: 1;
   min-width: 0;
   min-height: 44px;

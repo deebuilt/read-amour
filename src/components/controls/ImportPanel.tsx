@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Alert, Button, Popconfirm, Progress, Typography, Upload } from 'antd'
-import { CheckOutlined } from '@ant-design/icons'
-import {
-  parseGoodreadsCsv,
-  formatMonth,
-  groupByMonth,
-  type ImportResult,
-} from '../../import/goodreads'
+import { CheckOutlined, DeleteOutlined, DownOutlined } from '@ant-design/icons'
+import { formatMonth, groupByMonth } from '../../import/goodreads'
+import { parseLibraryCsv, type ParseOutcome } from '../../import/parse'
 import { resolveCoversForBooks, type BatchProgress } from '../../api/covers'
-import { deleteBooks, listUnplacedBooks, markBooksPlaced, saveBooks } from '../../storage/db'
+import {
+  deleteBooks,
+  listUnplacedBooks,
+  markBooksPlaced,
+  mergeImportedBooks,
+  saveBooks,
+} from '../../storage/db'
 import { color, fontSize } from '../../design/tokens'
-import { MAX_GRID_CAPACITY, type Book } from '../../types/domain'
+import { MAX_GRID_CAPACITY, SOURCE_LABEL, type Book } from '../../types/domain'
 import styles from './ImportPanel.module.css'
 
 /**
@@ -60,7 +62,7 @@ interface ImportPanelProps {
 
 export function ImportPanel({ onUseMonth, usedMonths, onCreateAll }: ImportPanelProps) {
   const [isCreatingAll, setIsCreatingAll] = useState(false)
-  const [result, setResult] = useState<ImportResult | undefined>()
+  const [result, setResult] = useState<ParseOutcome | undefined>()
   const [error, setError] = useState<string | undefined>()
   const [progress, setProgress] = useState<BatchProgress | undefined>()
   const [busyMonth, setBusyMonth] = useState<string | undefined>()
@@ -71,6 +73,16 @@ export function ImportPanel({ onUseMonth, usedMonths, onCreateAll }: ImportPanel
    * than an empty dropzone above a library the app is holding.
    */
   const [stored, setStored] = useState<Book[] | undefined>()
+  /** What the last drop added, and what it folded into books already held. */
+  const [merge, setMerge] = useState<{ added: number; merged: number } | undefined>()
+  /**
+   * Which list is showing its titles.
+   *
+   * One at a time. These lists run to a dozen books and the drawer is a phone
+   * screen — several open at once turns a scannable list into a wall, and the
+   * reader is answering "what is in this one?" about one list at a time.
+   */
+  const [openList, setOpenList] = useState<string | undefined>()
   const [isClearing, setIsClearing] = useState(false)
 
   const readStored = useCallback(async () => {
@@ -82,26 +94,24 @@ export function ImportPanel({ onUseMonth, usedMonths, onCreateAll }: ImportPanel
   }, [readStored])
 
   /**
-   * The month list, from whichever door supplied it.
+   * Everything waiting to be placed, however it got here.
    *
-   * A fresh parse wins while it is on screen: the reader just dropped that
-   * file and the months they expect to see are its months. Otherwise the
-   * stored rows are grouped, which is the same list the last drop produced
-   * minus whatever has since been placed.
+   * Grouped from the stored set rather than from the parse, and the difference
+   * is not cosmetic. Showing `result.byMonth` after a drop displayed only the
+   * file just read, while the clear button counted every unplaced book in
+   * storage — so importing a StoryGraph file over an existing Goodreads
+   * library listed 56 books above a button offering to clear 132, and the
+   * Goodreads books were nowhere on screen. Nothing had been overwritten; the
+   * list and the button were reading different things.
+   *
+   * The parse still feeds this, one step earlier: `handleFile` writes the rows
+   * and then re-reads storage, so a dropped file arrives here through the same
+   * door as everything else.
    */
-  const months = useMemo(() => {
-    if (result) return result.byMonth
-    if (!stored) return undefined
-    return groupByMonth(stored).byMonth
-  }, [result, stored])
-
-  const undatedCount = useMemo(() => {
-    if (result) return result.undatedCount
-    if (!stored) return 0
-    return groupByMonth(stored).undatedCount
-  }, [result, stored])
-
-  const totalCount = result ? result.books.length : (stored?.length ?? 0)
+  const grouped = useMemo(() => groupByMonth(stored ?? []), [stored])
+  const months = stored ? grouped.byMonth : undefined
+  const undatedCount = grouped.undatedCount
+  const totalCount = stored?.length ?? 0
 
   const remainingCount = useMemo(() => {
     if (!months) return 0
@@ -132,6 +142,37 @@ export function ImportPanel({ onUseMonth, usedMonths, onCreateAll }: ImportPanel
    * never re-set, precisely so this button cannot delete something the reader
    * chose by hand.
    */
+  /**
+   * Which of a group's books are still unplaced.
+   *
+   * A group listed here can hold books that have since gone onto a poster —
+   * "Again" refills a group whose books are already placed — so the count on
+   * the clear has to be the books it would actually delete, not the row's
+   * total. Reads the stored set rather than the book records, since those are
+   * the ones the flag was refreshed on.
+   */
+  const unplacedIds = useMemo(
+    () => new Set((stored ?? []).map((book) => book.id)),
+    [stored],
+  )
+
+  const unplacedIn = useCallback(
+    (books: readonly Book[]) => books.filter((book) => unplacedIds.has(book.id)),
+    [unplacedIds],
+  )
+
+  /** Discard one group's unplaced books, leaving anything already on a poster. */
+  const handleClearGroup = useCallback(
+    async (books: readonly Book[]) => {
+      const doomed = books.filter((book) => unplacedIds.has(book.id))
+      if (doomed.length === 0) return
+      await deleteBooks(doomed.map((book) => book.id))
+      setResult(undefined)
+      await readStored()
+    },
+    [unplacedIds, readStored],
+  )
+
   const handleClearStored = useCallback(async () => {
     if (!stored || stored.length === 0) return
     setIsClearing(true)
@@ -148,13 +189,16 @@ export function ImportPanel({ onUseMonth, usedMonths, onCreateAll }: ImportPanel
     setError(undefined)
     setResult(undefined)
     try {
-      const parsed = await parseGoodreadsCsv(file)
+      const parsed = await parseLibraryCsv(file)
       if (parsed.books.length === 0) {
-        setError('No finished books found. This importer reads the "read" shelf.')
+        setError('No finished books found in that file. Only books you have marked read are imported.')
         return false
       }
-      await saveBooks(parsed.books)
+      // Folds rows the library already holds under another site's id, rather
+      // than writing a second record for the same book.
+      const outcome = await mergeImportedBooks(parsed.books)
       setResult(parsed)
+      setMerge(outcome)
       await readStored()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not read that file.')
@@ -193,13 +237,13 @@ export function ImportPanel({ onUseMonth, usedMonths, onCreateAll }: ImportPanel
   return (
     <div className={styles.root}>
       <Typography.Paragraph style={{ fontSize: fontSize.sm, color: color.inkSoft }}>
-        Goodreads shut off its API, but you can still export your library.
-        On Goodreads, open <b>My Books</b>, then <b>Import and export</b>, then{' '}
-        <b>Export Library</b>. Drop the CSV here.
+        Bring your books from Goodreads or StoryGraph. On Goodreads, open{' '}
+        <b>My Books</b>, then <b>Import and export</b>, then <b>Export Library</b>.
+        On StoryGraph, open <b>Manage Account</b>, then <b>Export StoryGraph Library</b>.
       </Typography.Paragraph>
 
       <Upload.Dragger accept=".csv" showUploadList={false} beforeUpload={(file) => handleFile(file)}>
-        <p className={styles.dragText}>Drop your Goodreads CSV</p>
+        <p className={styles.dragText}>Drop your CSV</p>
         <p className={styles.dragHint}>or tap to choose the file</p>
       </Upload.Dragger>
 
@@ -210,6 +254,34 @@ export function ImportPanel({ onUseMonth, usedMonths, onCreateAll }: ImportPanel
       </Typography.Paragraph>
 
       {error && <Alert type="error" message={error} showIcon />}
+
+      {/* What the last drop actually added. The list below shows everything
+          waiting, from every import, so without this a reader who just dropped
+          a file has no way to tell what it contributed. */}
+      {result && (
+        <Alert
+          type="success"
+          showIcon
+          message={`Read ${result.books.length} ${
+            result.books.length === 1 ? 'book' : 'books'
+          } from ${SOURCE_LABEL[result.format]}`}
+          description={
+            <>
+              {merge && merge.merged > 0 && (
+                <div>
+                  {merge.added} new, {merge.merged} you already had.
+                </div>
+              )}
+              {result.skippedCount > 0 && (
+                <div>
+                  {result.skippedCount} rows skipped — only books you have marked read
+                  are imported.
+                </div>
+              )}
+            </>
+          }
+        />
+      )}
 
       {progress && (
         <div className={styles.progress}>
@@ -227,7 +299,7 @@ export function ImportPanel({ onUseMonth, usedMonths, onCreateAll }: ImportPanel
       {months && months.size > 0 && (
         <div className={styles.months}>
           <Typography.Text className={styles.label}>
-            {result ? 'In this file' : 'Already imported'}
+            Waiting to be placed
           </Typography.Text>
           <Typography.Text style={{ fontSize: fontSize.xs, color: color.inkFaint }}>
             {totalCount} {totalCount === 1 ? 'book' : 'books'}
@@ -253,25 +325,86 @@ export function ImportPanel({ onUseMonth, usedMonths, onCreateAll }: ImportPanel
             // saying so here beats silently dropping the overflow on tap.
             const overflow = Math.max(0, books.length - MAX_GRID_CAPACITY)
 
+            // Which exports these books came from. Usually one, but a reader
+            // who has used both Goodreads and StoryGraph can have the same
+            // group built from either — and then the source is the only thing
+            // explaining why a title shows up twice.
+            const isOpen = openList === month
+            const sources = [...new Set(books.map((book) => book.source))]
+              .map((source) => SOURCE_LABEL[source])
+              .join(' · ')
+
             return (
               <div key={month} className={styles.month}>
-                <div className={styles.monthMeta}>
-                  <span className={styles.monthName}>{formatMonth(month)}</span>
-                  <span className={styles.monthCount} style={{ color: color.inkFaint }}>
-                    {books.length} {books.length === 1 ? 'book' : 'books'}
-                    {overflow > 0 && ` · ${overflow} won't fit`}
-                  </span>
+                <div className={styles.monthTop}>
+                  {/* The whole meta block is the toggle. Covers cannot answer
+                      "what is in this list?" here — they are fetched when a
+                      list is used, so an unused list has none by definition —
+                      and the titles are the next best answer and cost nothing. */}
+                  <button
+                    type="button"
+                    className={styles.monthMeta}
+                    onClick={() => setOpenList(isOpen ? undefined : month)}
+                    aria-expanded={isOpen}
+                  >
+                    <span className={styles.monthName}>
+                      {formatMonth(month)}
+                      <DownOutlined
+                        className={isOpen ? `${styles.chevron} ${styles.chevronOpen}` : styles.chevron}
+                      />
+                    </span>
+                    <span className={styles.monthCount} style={{ color: color.inkFaint }}>
+                      {books.length} {books.length === 1 ? 'book' : 'books'} · {sources}
+                      {overflow > 0 && ` · ${overflow} won't fit`}
+                    </span>
+                  </button>
+                  <div className={styles.monthActions}>
+                    <Button
+                      size="small"
+                      type={isUsed ? 'text' : 'default'}
+                      icon={isUsed ? <CheckOutlined /> : undefined}
+                      onClick={() => void handleMonth(month, books)}
+                      loading={busyMonth === month}
+                      disabled={busyMonth !== undefined}
+                    >
+                      {isUsed ? 'Again' : 'Use'}
+                    </Button>
+                    {/* Clearing one group, where the button at the foot clears
+                        every group at once. Only offered on books still in
+                        storage — a group already on a poster has nothing here
+                        to discard. */}
+                    {unplacedIn(books).length > 0 && (
+                      <Popconfirm
+                        title="Clear stored books"
+                        description={`Removes ${unplacedIn(books).length} ${
+                          unplacedIn(books).length === 1 ? 'book' : 'books'
+                        } you never put on a poster. Posters keep their books.`}
+                        okText="Clear"
+                        cancelText="Keep"
+                        onConfirm={() => void handleClearGroup(books)}
+                      >
+                        <Button
+                          size="small"
+                          type="text"
+                          aria-label={`Clear ${formatMonth(month)}`}
+                          icon={<DeleteOutlined />}
+                          disabled={busyMonth !== undefined}
+                        />
+                      </Popconfirm>
+                    )}
+                  </div>
                 </div>
-                <Button
-                  size="small"
-                  type={isUsed ? 'text' : 'default'}
-                  icon={isUsed ? <CheckOutlined /> : undefined}
-                  onClick={() => void handleMonth(month, books)}
-                  loading={busyMonth === month}
-                  disabled={busyMonth !== undefined}
-                >
-                  {isUsed ? 'Again' : 'Use'}
-                </Button>
+
+                {isOpen && (
+                  <ul className={styles.titles}>
+                    {books.map((book) => (
+                      <li key={book.id} className={styles.title}>
+                        <span className={styles.titleName}>{book.title}</span>
+                        <span className={styles.titleAuthor}>{book.author}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             )
           })}
