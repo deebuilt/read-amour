@@ -55,6 +55,14 @@ export interface Release {
 
 export const RELEASES: readonly Release[] = [
   {
+    version: '0.5.1',
+    date: '2026-08-18',
+    headline: 'Poster ideas reveal covers.',
+    changes: [
+      'Covers stay put when switching between posters.',
+    ],
+  },
+  {
     version: '0.5.0',
     date: '2026-08-18',
     headline: 'Poster ideas.',

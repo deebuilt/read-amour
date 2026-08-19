@@ -336,11 +336,20 @@ export default function App() {
         // one should not throw away the fetching it just paid for.
         await saveBooks(updated)
         updated.forEach(replaceBook)
+
+        // Recompute the suggestions against the covers that just landed.
+        //
+        // The books saved above are the same records the suggestion rows are
+        // built from, but `suggestions` is state holding the objects as they
+        // were BEFORE the fetch — so without this the strips stay blank until
+        // something else reloads them. That was the reported quirk: covers only
+        // appeared after a poster had been built and the panel reopened.
+        reloadSuggestions()
       } finally {
         setIsResolvingCovers(false)
       }
     },
-    [replaceBook],
+    [replaceBook, reloadSuggestions],
   )
 
   /**
@@ -655,7 +664,6 @@ export default function App() {
               <SuggestionsPanel
                 suggestions={suggestions}
                 isLoading={isLoadingSuggestions}
-                coverUrls={coverUrls}
                 onPreview={(suggestion) => void handlePreviewSuggestion(suggestion)}
                 onDismiss={dismissSuggestion}
                 onImport={() => setPanel('import')}

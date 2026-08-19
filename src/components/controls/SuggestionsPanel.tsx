@@ -1,5 +1,7 @@
+import { useMemo } from 'react'
 import { Button, Spin, Typography } from 'antd'
 import { CloseOutlined } from '@ant-design/icons'
+import { useCoverUrlsFor } from '../../hooks/useCoverUrlsFor'
 import type { Suggestion } from '../../domain/suggestions'
 import styles from './SuggestionsPanel.module.css'
 
@@ -25,8 +27,6 @@ import styles from './SuggestionsPanel.module.css'
 interface SuggestionsPanelProps {
   suggestions: Suggestion[]
   isLoading: boolean
-  /** Cover object URLs by blob key, for the thumbnail strip. */
-  coverUrls: Map<string, string>
   /** Build this one in memory and show it on the stage. Never saves. */
   onPreview: (suggestion: Suggestion) => void
   onDismiss: (id: string) => void
@@ -40,11 +40,31 @@ const STRIP_LIMIT = 8
 export function SuggestionsPanel({
   suggestions,
   isLoading,
-  coverUrls,
   onPreview,
   onDismiss,
   onImport,
 }: SuggestionsPanelProps) {
+  /*
+   * The panel resolves its own covers rather than borrowing the poster's.
+   *
+   * It used to take `coverUrls` from `App`, which holds URLs for the board on
+   * screen — so a suggestion's strip filled in only where its books overlapped
+   * the open poster, and emptied when the reader switched posters. The blobs
+   * were in storage the whole time; nothing had asked for them.
+   *
+   * Only the covers actually shown, not every book in every suggestion: the
+   * strip stops at `STRIP_LIMIT`, and resolving the tail of a twenty-book
+   * suggestion would decode blobs that never reach the screen.
+   */
+  const coverKeys = useMemo(
+    () =>
+      suggestions.flatMap((suggestion) =>
+        suggestion.books.slice(0, STRIP_LIMIT).map((book) => book.coverBlobKey),
+      ),
+    [suggestions],
+  )
+  const coverUrls = useCoverUrlsFor(coverKeys)
+
   if (isLoading) {
     return (
       <div className={styles.loading}>
@@ -80,7 +100,7 @@ export function SuggestionsPanel({
   return (
     <div className={styles.root}>
       <Typography.Paragraph className={styles.lead}>
-        Built from your library. Tap one to see it — nothing is saved until you keep it.
+        Tap one to see the poster. Nothing is saved until you keep it.
       </Typography.Paragraph>
 
       <ul className={styles.list}>
