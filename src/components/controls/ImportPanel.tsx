@@ -1,9 +1,14 @@
-import { useCallback, useMemo, useState } from 'react'
-import { Alert, Button, Progress, Typography, Upload } from 'antd'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Alert, Button, Popconfirm, Progress, Typography, Upload } from 'antd'
 import { CheckOutlined } from '@ant-design/icons'
-import { parseGoodreadsCsv, formatMonth, type ImportResult } from '../../import/goodreads'
+import {
+  parseGoodreadsCsv,
+  formatMonth,
+  groupByMonth,
+  type ImportResult,
+} from '../../import/goodreads'
 import { resolveCoversForBooks, type BatchProgress } from '../../api/covers'
-import { saveBooks } from '../../storage/db'
+import { deleteBooks, listUnplacedBooks, markBooksPlaced, saveBooks } from '../../storage/db'
 import { color, fontSize } from '../../design/tokens'
 import { MAX_GRID_CAPACITY, type Book } from '../../types/domain'
 import styles from './ImportPanel.module.css'
@@ -15,6 +20,17 @@ import styles from './ImportPanel.module.css'
  * cover resolution is dozens of network calls. Showing the month list straight
  * after the parse means the user picks a month while covers are still
  * arriving, rather than watching a spinner before seeing anything.
+ *
+ * **Two doors onto one list.** Drop a CSV, or open what is already stored.
+ * `ImportResult` used to live only in this component's state, so closing the
+ * drawer threw the month list away and the only way back was to find the file
+ * and drop it again — an app making the reader re-import a file whose every row
+ * it already held. Nothing was ever lost from storage; what died with the
+ * drawer was the grouping, and `dateRead` is on every record, so it rebuilds
+ * from IndexedDB exactly as it was built from the file.
+ *
+ * Both doors hand the same `Map<string, Book[]>` to the same rows, and the
+ * panel below does not know which one it came through.
  */
 
 interface ImportPanelProps {
@@ -48,25 +64,85 @@ export function ImportPanel({ onUseMonth, usedMonths, onCreateAll }: ImportPanel
   const [error, setError] = useState<string | undefined>()
   const [progress, setProgress] = useState<BatchProgress | undefined>()
   const [busyMonth, setBusyMonth] = useState<string | undefined>()
+  /**
+   * Books sitting in storage that came in on a CSV and were never placed.
+   *
+   * Read on mount, so the drawer opens showing what is already there rather
+   * than an empty dropzone above a library the app is holding.
+   */
+  const [stored, setStored] = useState<Book[] | undefined>()
+  const [isClearing, setIsClearing] = useState(false)
+
+  const readStored = useCallback(async () => {
+    setStored(await listUnplacedBooks())
+  }, [])
+
+  useEffect(() => {
+    void readStored()
+  }, [readStored])
+
+  /**
+   * The month list, from whichever door supplied it.
+   *
+   * A fresh parse wins while it is on screen: the reader just dropped that
+   * file and the months they expect to see are its months. Otherwise the
+   * stored rows are grouped, which is the same list the last drop produced
+   * minus whatever has since been placed.
+   */
+  const months = useMemo(() => {
+    if (result) return result.byMonth
+    if (!stored) return undefined
+    return groupByMonth(stored).byMonth
+  }, [result, stored])
+
+  const undatedCount = useMemo(() => {
+    if (result) return result.undatedCount
+    if (!stored) return 0
+    return groupByMonth(stored).undatedCount
+  }, [result, stored])
+
+  const totalCount = result ? result.books.length : (stored?.length ?? 0)
 
   const remainingCount = useMemo(() => {
-    if (!result) return 0
-    return [...result.byMonth.keys()].filter((month) => !usedMonths.has(month)).length
-  }, [result, usedMonths])
+    if (!months) return 0
+    return [...months.keys()].filter((month) => !usedMonths.has(month)).length
+  }, [months, usedMonths])
 
   const handleCreateAll = useCallback(async () => {
-    if (!result) return
+    if (!months) return
     setIsCreatingAll(true)
     try {
       await onCreateAll(
-        [...result.byMonth.entries()]
+        [...months.entries()]
           .filter(([month]) => !usedMonths.has(month))
           .map(([month, books]) => ({ month, books })),
       )
+      await readStored()
     } finally {
       setIsCreatingAll(false)
     }
-  }, [result, usedMonths, onCreateAll])
+  }, [months, usedMonths, onCreateAll, readStored])
+
+  /**
+   * Discard the rows nobody adopted.
+   *
+   * Scoped to `imported === true` by `listUnplacedBooks`, so it can only ever
+   * reach books that arrived in a CSV and never landed on a poster. A book
+   * placed and later removed stays unflagged and survives this — the flag is
+   * never re-set, precisely so this button cannot delete something the reader
+   * chose by hand.
+   */
+  const handleClearStored = useCallback(async () => {
+    if (!stored || stored.length === 0) return
+    setIsClearing(true)
+    try {
+      await deleteBooks(stored.map((book) => book.id))
+      setResult(undefined)
+      await readStored()
+    } finally {
+      setIsClearing(false)
+    }
+  }, [stored, readStored])
 
   const handleFile = useCallback(async (file: File) => {
     setError(undefined)
@@ -79,11 +155,12 @@ export function ImportPanel({ onUseMonth, usedMonths, onCreateAll }: ImportPanel
       }
       await saveBooks(parsed.books)
       setResult(parsed)
+      await readStored()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not read that file.')
     }
     return false
-  }, [])
+  }, [readStored])
 
   const handleMonth = useCallback(
     async (month: string, books: Book[]) => {
@@ -98,11 +175,19 @@ export function ImportPanel({ onUseMonth, usedMonths, onCreateAll }: ImportPanel
       })
       await saveBooks(withCovers)
 
+      // Adopted before the poster is announced, and awaited here rather than
+      // left to `onUseMonth`. That prop returns void — App fires it with
+      // `void handleUseMonth(...)` — so this component cannot wait on a write
+      // made inside it, and refreshing the list first would re-read storage
+      // before the flag had been cleared and show the month as still unplaced.
+      await markBooksPlaced(withCovers.map((book) => book.id))
+
       setProgress(undefined)
       setBusyMonth(undefined)
       onUseMonth(month, withCovers)
+      await readStored()
     },
-    [onUseMonth],
+    [onUseMonth, readStored],
   )
 
   return (
@@ -117,6 +202,12 @@ export function ImportPanel({ onUseMonth, usedMonths, onCreateAll }: ImportPanel
         <p className={styles.dragText}>Drop your Goodreads CSV</p>
         <p className={styles.dragHint}>or tap to choose the file</p>
       </Upload.Dragger>
+
+      <Typography.Paragraph style={{ fontSize: fontSize.xs, color: color.inkFaint, margin: 0 }}>
+        Pick the books you want on a poster. Anything you don&rsquo;t pick stays
+        stored on this device, so you can come back and add it later. Only books
+        on a poster count toward your stats.
+      </Typography.Paragraph>
 
       {error && <Alert type="error" message={error} showIcon />}
 
@@ -133,11 +224,14 @@ export function ImportPanel({ onUseMonth, usedMonths, onCreateAll }: ImportPanel
         </div>
       )}
 
-      {result && (
+      {months && months.size > 0 && (
         <div className={styles.months}>
           <Typography.Text className={styles.label}>
-            {result.books.length} books read
-            {result.undatedCount > 0 && ` · ${result.undatedCount} with no date`}
+            {result ? 'In this file' : 'Already imported'}
+          </Typography.Text>
+          <Typography.Text style={{ fontSize: fontSize.xs, color: color.inkFaint }}>
+            {totalCount} {totalCount === 1 ? 'book' : 'books'}
+            {undatedCount > 0 && ` · ${undatedCount} with no date`}
             {remainingCount > 0 && ` · ${remainingCount} months to go`}
           </Typography.Text>
 
@@ -153,7 +247,7 @@ export function ImportPanel({ onUseMonth, usedMonths, onCreateAll }: ImportPanel
             </div>
           )}
 
-          {[...result.byMonth.entries()].map(([month, books]) => {
+          {[...months.entries()].map(([month, books]) => {
             const isUsed = usedMonths.has(month)
             // A month with more books than the biggest grid holds cannot fit;
             // saying so here beats silently dropping the overflow on tap.
@@ -181,6 +275,24 @@ export function ImportPanel({ onUseMonth, usedMonths, onCreateAll }: ImportPanel
               </div>
             )
           })}
+
+          {stored && stored.length > 0 && (
+            <div className={styles.clear}>
+              <Popconfirm
+                title="Clear stored books"
+                description={`Removes ${stored.length} ${
+                  stored.length === 1 ? 'book' : 'books'
+                } you never put on a poster. Posters keep their books.`}
+                okText="Clear"
+                cancelText="Keep"
+                onConfirm={() => void handleClearStored()}
+              >
+                <Button block type="text" danger loading={isClearing}>
+                  Clear {stored.length} unused {stored.length === 1 ? 'book' : 'books'}
+                </Button>
+              </Popconfirm>
+            </div>
+          )}
         </div>
       )}
     </div>

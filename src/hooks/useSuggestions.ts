@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { suggestPosters, type Suggestion } from '../domain/suggestions'
+import { isAdopted } from '../domain/library'
 import { dismissSuggestion, readDismissed } from '../storage/dismissedSuggestions'
-import { listBooks } from '../storage/db'
+import { ensureImportedFlagBackfilled, listBooks } from '../storage/db'
 import type { Board, Book } from '../types/domain'
 
 /**
@@ -46,11 +47,23 @@ export function useSuggestions(boards: readonly Board[]): UseSuggestionsResult {
     generation.current += 1
     const mine = generation.current
 
-    void listBooks().then((all) => {
-      if (mine !== generation.current) return
-      setBooks(all)
-      setNow(new Date())
-    })
+    // Wait for the imported-flag migration before reading. This hook mounts
+    // beside `useBoard` rather than after it, and React orders sibling effects
+    // however it likes — so without the gate this read could land before the
+    // migration had written a single flag, and every unplaced CSV row would
+    // still look adopted. That is what put a June 2023 poster on the list for
+    // a month that had never been placed.
+    void ensureImportedFlagBackfilled()
+      .then(listBooks)
+      .then((all) => {
+        if (mine !== generation.current) return
+        // Unadopted CSV rows are filtered at the same boundary `useStats`
+        // filters them, and for the same reason. This is the reported bug: the
+        // engine ranked the whole parsed file, so it offered a poster for a
+        // month that was in the export and was never selected.
+        setBooks(all.filter(isAdopted))
+        setNow(new Date())
+      })
   }, [])
 
   useEffect(() => {

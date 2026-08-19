@@ -55,6 +55,16 @@ export interface Release {
 
 export const RELEASES: readonly Release[] = [
   {
+    version: '0.6.0',
+    date: '2026-08-18',
+    headline: 'Imported files are stored.',
+    changes: [
+      "Import a CSV and pick the books you want on a poster. Anything you don't pick is stored, so you can come back and add it later.",
+      'Only books on a poster count toward your stats and poster ideas.',
+      'Delete the ones you never used whenever you want.',
+    ],
+  },
+  {
     version: '0.5.1',
     date: '2026-08-18',
     headline: 'Poster ideas reveal covers.',

@@ -25,6 +25,7 @@ import { useBackgroundUrl } from './hooks/useBackgroundUrl'
 import { usePosterSize } from './hooks/usePosterSize'
 import { useTheme } from './hooks/useTheme'
 import {
+  bookIdsOnBoard,
   clearSlots,
   createBoard,
   filledCount,
@@ -52,7 +53,7 @@ import {
 import { monthName } from './import/goodreads'
 import { resolveCoversForBooks } from './api/covers'
 import type { Suggestion } from './domain/suggestions'
-import { getBoardByMonth, saveBoard, saveBooks } from './storage/db'
+import { getBoardByMonth, markBooksPlaced, saveBoard, saveBooks } from './storage/db'
 import { buildAntTheme } from './design/antTheme'
 import { gridCapacity, type Board, type Book } from './types/domain'
 import styles from './App.module.css'
@@ -206,6 +207,9 @@ export default function App() {
     (book: Book) => {
       if (!board || activeSlot === undefined) return
       updateBoard(setSlotBook(board, activeSlot, book.id))
+      // Choosing a book for a slot adopts it, whatever it is — including a row
+      // that arrived in a CSV and is being placed by hand rather than by month.
+      void markBooksPlaced([book.id])
       setPanel(undefined)
       setActiveSlot(undefined)
     },
@@ -257,8 +261,12 @@ export default function App() {
       if (existing) await switchBoard(existing.id)
       const target = existing ?? (await startNewBoard(month, monthName(month)))
       updateBoard(fillSlots(clearSlots(target), monthBooks))
+      // The import panel clears the imported flag itself, before calling this —
+      // it can await that write and this cannot, since the prop returns void.
+      // Recompute so the suggestions notice the month that just landed.
+      reloadSuggestions()
     },
-    [startNewBoard, switchBoard, updateBoard, handleDiscardPreview],
+    [startNewBoard, switchBoard, updateBoard, handleDiscardPreview, reloadSuggestions],
   )
 
   /**
@@ -274,10 +282,12 @@ export default function App() {
         if (await getBoardByMonth(month)) continue
         const fresh = createBoard(month, monthName(month))
         await saveBoard(fillSlots(fresh, monthBooks))
+        await markBooksPlaced(monthBooks.map((book) => book.id))
       }
       await refreshBoards()
+      reloadSuggestions()
     },
-    [refreshBoards],
+    [refreshBoards, reloadSuggestions],
   )
 
   /**
@@ -365,6 +375,10 @@ export default function App() {
     setIsKeeping(true)
     try {
       await saveBoard(preview)
+      // The suggestion's books are on a saved poster now. Until this ran, a
+      // kept suggestion left its books flagged, so the next recompute still
+      // treated them as unadopted residue.
+      await markBooksPlaced(bookIdsOnBoard(preview))
       if (previewSource) dismissSuggestion(previewSource.id)
       setPreview(undefined)
       setPreviewSource(undefined)

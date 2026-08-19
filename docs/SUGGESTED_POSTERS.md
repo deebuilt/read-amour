@@ -417,6 +417,33 @@ silent-wrong-data bug if guessed:
   column is `ISBN/UID` and may hold a non-ISBN identifier, which would reach
   Open Library and match nothing.
 
+### Verified against a real export, 2026-08-18
+
+Every question above is now answered from an actual StoryGraph file (60 rows).
+The findings are better than the plan assumed, and the risk it was guarding
+against does not exist.
+
+- **`Last Date Read` is `YYYY/MM/DD`** — byte-identical to Goodreads. The
+  existing `parseDate` works unchanged, and the every-book-undated failure the
+  plan feared cannot happen.
+- **`Star Rating` carries no half stars in practice** — the file holds `5.0`,
+  `4.0`, `3.0`, `1.0` and empty. `parseFloat` already reads those. Round to
+  nearest anyway, since the format permits halves and this file simply has none.
+- **`Read Status` is `read` / `currently-reading` / `to-read` /
+  `did-not-finish`** — four values, not the three the plan guessed. It maps onto
+  the `status` field the TBR poster wants, and `did-not-finish` is a fourth
+  state to decide about rather than a surprise to discover mid-build.
+- **ISBNs are bare** — no `="..."` armour, so the Goodreads trap is absent. But
+  three rows hold **Amazon ASINs** (`B08VS8Z8ZR`) in `ISBN/UID`, which is the
+  "may hold a non-ISBN identifier" case the plan flagged. `cleanIsbn` already
+  rejects them on length, so this is handled rather than needing handling.
+- **`Dates Read` does hold ranges** (`2023/06/30-2023/07/02`, three rows),
+  confirming the instruction to ignore that column and read `Last Date Read`.
+
+Two columns are empty throughout this export and should not be relied on:
+`Moods` and everything from `Pace` to `Flawed Characters?`. Out of scope
+regardless, per the note below.
+
 ### Shape of the change
 
 Do **not** fork the importer. Detect the format from the header row and map
@@ -694,6 +721,135 @@ on `source === 'goodreads'` as well, so only CSV rows are ever flagged.
    for: a title already in the library is offered from storage — instantly,
    offline, with its ISBN — instead of being fetched. This is the payoff that
    justifies keeping the rows rather than refusing to store them.
+
+### The import drawer surfaces what is already stored
+
+The flag is not only bookkeeping for a cleanup button. It is the **index of the
+library that has not been placed yet**, and that makes the import drawer into
+two doors onto one list.
+
+**The problem it solves, which is worse than it looks.** `ImportResult` lives in
+`ImportPanel`'s React state. Drop a CSV, get the month list, close the drawer —
+**the list is gone.** The books are still in IndexedDB, every one of them, but
+the only way back to that month list is to find the file and drop it again. The
+app makes the reader re-import a file whose contents it already holds.
+
+Nothing is lost from *storage*, and that is worth stating plainly because it
+reads like data loss and is not. `parseGoodreadsCsv` puts every read-shelf row
+into `books`, and `saveBooks(parsed.books)` saves all of them. What dies with the
+drawer is the **grouping**, not the books — and `dateRead` is on every record, so
+the grouping can be rebuilt from storage exactly as it was built from the file.
+
+So the drawer gets a second entry point:
+
+- **Drop a CSV** — parses, writes rows as `imported: true`, shows the months.
+- **Already in your library** — the same month list, grouped from stored books
+  where `imported === true`, with the same **Use** / **Again** buttons and the
+  same "Make all N posters".
+
+Both hand the panel an identical `Map<string, Book[]>`. The panel does not need
+to know which door it came through, which is why this is cheap: the grouping,
+the row UI, and `handleUseMonth` all already exist. The new part is one query.
+
+**This is what makes the flag earn its place.** Importing stops meaning "drop a
+file" and starts meaning **"put these on a poster"** — which is what the month
+list always implied and never did. The CSV drop becomes what it honestly is:
+loading a reading history into the app.
+
+**The cleanup button belongs here, not in About.** The list and the clear action
+are the same feature seen twice — one adopts what is stored, the other discards
+the rest. Put the clear at the foot of that list, where the reader can see what
+would go.
+
+**Undated books stay out of it, and already have a home.** A row with no
+`dateRead` has no month to file under, so it does not appear in this list — the
+same as today. It is not stranded: `UndatedPanel`, reached from Stats, lists
+every undated book and takes a date, at which point the book files itself under a
+month on its own. No new process needed.
+
+**Stats says nothing about what it is leaving out.** Ruthnie, asked directly:
+no callout, no "340 books in your library are not on a poster yet." Unplaced
+books simply do not count. The dashboard reports `undatedCount` because a missing
+date is a thing the reader can fix on that screen; an unplaced book is not a data
+problem and does not want a footnote.
+
+### Shipped 2026-08-18 — the flag, the second door, and the cleanup
+
+Version 0.6.0. The whole of this section is built, and the StoryGraph questions
+below were answered against a real export in the same session.
+
+**What was built**
+
+- `Book.imported` — set on the file drop, cleared on placement, never re-set.
+- `src/domain/library.ts` — `isAdopted()`, the single predicate `useStats` and
+  `useSuggestions` both filter on, so the dashboard and the suggestion engine
+  cannot drift about which books are yours.
+- `backfillImportedFlag()` in `storage/db.ts`, awaited at startup in `useBoard`
+  beside `repairCoverLinks()`.
+- `markBooksPlaced()`, `listUnplacedBooks()`, `deleteBooks()`.
+- `groupByMonth()`, exported out of `import/goodreads.ts` so both doors of the
+  import drawer group identically.
+- `ImportPanel` — the stored-library door, the copy explaining what storing
+  means, and the cleanup at the foot of the list.
+
+**The merge rule was wrong twice, and both would have shipped silently.**
+The plan says the flag is cleared on placement and never re-set, which is right
+and is not the whole rule — `saveBooks` merges field by field, so the *merge*
+had to be decided too. It was first written as
+`book.imported === false ? false : book.imported && existing.imported`, which
+fails two real cases:
+
+- A fresh CSV row landing on a book stored **before the field existed** —
+  `true && undefined` is `undefined`, so re-dropping a file over an existing
+  library left every row unflagged and counting. That is the reported bug
+  surviving the fix meant to remove it.
+- A write that sets no flag at all landing on an **already-cleared** book —
+  `undefined && false` is `undefined`, which erases a clearing that had already
+  happened. The preview cover-save does exactly this write.
+
+The rule that holds is **`false` on either side wins, otherwise the incoming
+value fills in**: `(a === false || b === false) ? false : (a ?? b)`. Verified
+against the eight real merge cases rather than by reading it — neither failure
+is visible in the code, and both are obvious in a table.
+
+**The backfill was verified for the disaster case specifically.** Run over a
+library mixing placed and unplaced Goodreads rows with searched and hand-added
+books, the cleanup's delete list contains nothing that sits on a poster, and
+`source !== 'goodreads'` books are never flagged at all.
+
+**Clearing the flag had to move into `ImportPanel`.** The plan implies App
+clears it on placement, and for three of the four paths it does. The month
+import is the exception: `onUseMonth` is typed `=> void` and App fires it as
+`void handleUseMonth(...)`, so the panel cannot await a write made inside it —
+refreshing the list straight after would re-read storage before the flag was
+cleared and show the month it had just used as still unplaced. The panel has the
+books in hand already, so it marks them itself and then announces.
+
+**The month list now prefers a fresh parse and falls back to storage.** Dropping
+a file shows that file's months; otherwise the drawer opens on what is already
+stored. Both are the same `Map<string, Book[]>` through the same rows, which is
+what made this cheap.
+
+**The migration had to become awaitable, and the bug looked like something
+else.** With `backfillImportedFlag()` awaited inside `useBoard`'s load, the
+suggestion list still offered a poster for a month that had never been placed —
+which read as a stale suggestion left over from a previous session. It was a
+startup race. `useSuggestions` and `useStats` read the library on their own
+mounts, beside `useBoard` rather than after it, and React gives no ordering
+between sibling effects: the read landed before the migration had written a
+single flag, so every unplaced CSV row still looked adopted.
+
+`ensureImportedFlagBackfilled()` memoises the **promise**, not a boolean, and
+every hook that reads books awaits it. A second caller arriving mid-migration
+waits for the same run instead of starting its own or reading past one in
+flight. Stats hid the same race behind timing — that panel is opened long after
+startup, so its read won in practice — which is exactly the kind of bug that
+comes back as "it only happens sometimes."
+
+**Not built, deliberately:** search checking the reader's own history first
+(item 3 of "what this unlocks"). It is a genuinely good payoff and it is a
+change to the search path rather than to the import flag, so it wants its own
+session against `api/bookSearch.ts`.
 
 ### The open edge
 

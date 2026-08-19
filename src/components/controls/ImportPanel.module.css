@@ -70,3 +70,14 @@
 .monthCount {
   font-size: 12px;
 }
+
+/*
+ * The clear sits at the foot of the month list rather than in About, because
+ * the list and the clear are one feature seen twice — one adopts what is
+ * stored, the other discards the rest. Putting it here means the reader can
+ * see exactly what would go.
+ */
+.clear {
+  padding-top: 8px;
+  border-top: 1px solid var(--ra-line);
+}

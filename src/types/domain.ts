@@ -26,6 +26,27 @@ export interface Book {
   /** 0 means unrated, matching Goodreads' own encoding. */
   rating?: number
   source: BookSource
+  /**
+   * Whether this book arrived in a CSV and has never been placed on a poster.
+   *
+   * There is one `books` store and everything writes to it, so a row parsed out
+   * of a four-hundred-book export is otherwise indistinguishable from a book the
+   * reader searched for and chose. `saveBooks(parsed.books)` runs on the file
+   * drop — before the month list renders, before a single month is tapped — so
+   * every month in the file is stored and only the tapped ones become posters.
+   * The rest are residue, and without this flag they counted: stats totalled
+   * them and the suggestion engine built posters out of them, which is how a
+   * reader was offered June 2023 for a month she never selected.
+   *
+   * Set on the file drop, cleared the moment the book lands on a poster by any
+   * path. Books added by search or by hand never carry it.
+   *
+   * **Never re-set once cleared.** A book taken off every poster stays
+   * unflagged, which is the safe direction — it was deliberately placed once,
+   * and re-flagging it would let the cleanup delete something the reader chose
+   * by hand.
+   */
+  imported?: boolean
 }
 
 export type BookSource = 'goodreads' | 'search' | 'manual'

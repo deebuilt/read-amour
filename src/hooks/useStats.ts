@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { computeStats, type ReadingStats } from '../domain/stats'
-import { listBooks } from '../storage/db'
+import { isAdopted } from '../domain/library'
+import { ensureImportedFlagBackfilled, listBooks } from '../storage/db'
 import type { Book } from '../types/domain'
 
 /**
@@ -16,6 +17,12 @@ import type { Book } from '../types/domain'
  * behind it, and re-reading every book on each keystroke elsewhere in the app
  * would be real work for no visible gain. Closing and reopening the panel
  * re-reads.
+ *
+ * Rows that arrived in a CSV and were never placed on a poster are filtered
+ * out here, at this one boundary, rather than inside each statistic. A book
+ * nobody adopted is not part of a reading history — counting the whole file the
+ * moment it parsed is what made the dashboard total four hundred books after an
+ * import of three months.
  *
  * The clock is captured once per read for the same reason `computeStats` takes
  * `now` as a parameter: a component that called `new Date()` while rendering
@@ -60,12 +67,19 @@ export function useStats(): UseStatsResult {
     generation.current += 1
     const mine = generation.current
 
-    void listBooks().then((all) => {
-      // A newer read has started, or the component has gone away.
-      if (mine !== generation.current) return
-      setBooks(all)
-      setNow(new Date())
-    })
+    // Same migration gate `useSuggestions` waits on. The dashboard is usually
+    // opened long after startup, so this read would win the race in practice —
+    // but "usually" is not a guarantee, and a stats screen that counted the
+    // library differently depending on how fast a panel was opened would be
+    // the worst version of this bug to chase.
+    void ensureImportedFlagBackfilled()
+      .then(listBooks)
+      .then((all) => {
+        // A newer read has started, or the component has gone away.
+        if (mine !== generation.current) return
+        setBooks(all.filter(isAdopted))
+        setNow(new Date())
+      })
   }, [])
 
   useEffect(() => {

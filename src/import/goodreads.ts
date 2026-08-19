@@ -91,7 +91,58 @@ function rowToBook(row: GoodreadsRow, index: number): Book | undefined {
     dateRead,
     rating: parseRating(row['My Rating']),
     source: 'goodreads',
+    // Stored, but not yet adopted. Every row in the file is written the moment
+    // it parses — before the month list renders — and only the months the
+    // reader actually taps become posters. The flag is what keeps the rest out
+    // of the stats and the suggestions until then, and placement clears it.
+    imported: true,
   }
+}
+
+/**
+ * Bucket books into months, newest first.
+ *
+ * Exported because the import drawer has two doors onto the same list: a
+ * dropped CSV, and the books already in storage that were never placed. Both
+ * must produce an identical `Map<string, Book[]>` — the panel cannot tell which
+ * door it came through, and regrouping stored books with a second copy of this
+ * would be the way the two lists quietly start disagreeing.
+ *
+ * `dateRead` is sliced, never parsed: `new Date('2026-08-01')` reads as UTC and
+ * renders local, which files the book under July everywhere west of Greenwich.
+ */
+export function groupByMonth(books: readonly Book[]): {
+  byMonth: Map<string, Book[]>
+  undatedCount: number
+} {
+  const byMonth = new Map<string, Book[]>()
+  let undatedCount = 0
+
+  books.forEach((book) => {
+    if (!book.dateRead) {
+      undatedCount += 1
+      return
+    }
+    const key = monthKey(book.dateRead)
+    const bucket = byMonth.get(key)
+    if (bucket) {
+      bucket.push(book)
+    } else {
+      byMonth.set(key, [book])
+    }
+  })
+
+  // Newest month first, and newest book first inside each month.
+  const sorted = new Map(
+    [...byMonth.entries()]
+      .sort(([a], [b]) => b.localeCompare(a))
+      .map(([key, value]): [string, Book[]] => [
+        key,
+        [...value].sort((a, b) => (b.dateRead ?? '').localeCompare(a.dateRead ?? '')),
+      ]),
+  )
+
+  return { byMonth: sorted, undatedCount }
 }
 
 /**
@@ -123,34 +174,8 @@ export function parseGoodreadsCsv(file: File): Promise<ImportResult> {
           }
         })
 
-        const byMonth = new Map<string, Book[]>()
-        let undatedCount = 0
-
-        books.forEach((book) => {
-          if (!book.dateRead) {
-            undatedCount += 1
-            return
-          }
-          const key = monthKey(book.dateRead)
-          const bucket = byMonth.get(key)
-          if (bucket) {
-            bucket.push(book)
-          } else {
-            byMonth.set(key, [book])
-          }
-        })
-
-        // Newest month first, and newest book first inside each month.
-        const sorted = new Map(
-          [...byMonth.entries()]
-            .sort(([a], [b]) => b.localeCompare(a))
-            .map(([key, value]): [string, Book[]] => [
-              key,
-              [...value].sort((a, b) => (b.dateRead ?? '').localeCompare(a.dateRead ?? '')),
-            ]),
-        )
-
-        resolve({ books, byMonth: sorted, undatedCount, skippedCount })
+        const { byMonth, undatedCount } = groupByMonth(books)
+        resolve({ books, byMonth, undatedCount, skippedCount })
       },
       error: (error: Error) => reject(error),
     })

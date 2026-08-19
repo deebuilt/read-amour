@@ -158,12 +158,148 @@ export async function saveBooks(books: readonly Book[]): Promise<void> {
         coverBlobKey: book.coverBlobKey ?? existing.coverBlobKey,
         dateRead: book.dateRead ?? existing.dateRead,
         rating: book.rating ?? existing.rating,
+        // The one field where the incoming record does NOT simply win, because
+        // the two directions are not symmetric: a clearing must stick forever,
+        // a flagging must never undo one.
+        //
+        // So `false` on EITHER side wins, and otherwise the incoming value
+        // fills in. Placement clears the flag, but book objects keep circulating
+        // afterwards — the preview cover-save re-saves books it fetched art for,
+        // and a re-dropped CSV re-parses rows that have since been placed. Both
+        // would re-flag an adopted book if `true` could win.
+        //
+        // Reading `existing.imported === false` matters as much as the incoming
+        // one: without it a cover-save, which sets no flag at all, would erase a
+        // clearing back to `undefined`. And the fallback must be `??` rather
+        // than `&&` — with `&&`, a fresh CSV row landing on a book stored before
+        // this field existed collapsed `true` to `undefined`, which left every
+        // row of a re-dropped file counting as adopted. Both were caught by
+        // running the eight real merge cases rather than by reading this.
+        imported:
+          book.imported === false || existing.imported === false
+            ? false
+            : (book.imported ?? existing.imported),
       }
       return tx.store.put(merged)
     }),
   )
 
   await tx.done
+}
+
+/**
+ * Clear the imported flag on books that have just been placed on a poster.
+ *
+ * Placement is what "adopting" a book means, so it is the one event that turns
+ * a parsed row into part of the reader's library. Every path that puts a book
+ * into a slot calls this — the month import, "make all posters", keeping a
+ * suggestion, and choosing a book for a slot by hand.
+ *
+ * Only ever clears. A book that is already unflagged is skipped rather than
+ * rewritten, so this is a no-op on a library built entirely by search, and it
+ * can never re-flag anything.
+ */
+export async function markBooksPlaced(ids: readonly string[]): Promise<void> {
+  if (ids.length === 0) return
+  const db = await getDB()
+  const tx = db.transaction('books', 'readwrite')
+
+  await Promise.all(
+    ids.map(async (id) => {
+      const book = await tx.store.get(id)
+      if (!book?.imported) return
+      return tx.store.put({ ...book, imported: false })
+    }),
+  )
+
+  await tx.done
+}
+
+/**
+ * Books that came in on a CSV and were never put on a poster.
+ *
+ * The index of the library that has not been adopted yet — what the import
+ * drawer lists under "already in your library", and what the cleanup clears.
+ */
+export async function listUnplacedBooks(): Promise<Book[]> {
+  const db = await getDB()
+  const books = await db.getAll('books')
+  return books.filter((book) => book.imported === true)
+}
+
+/** Delete books by id. Used by the cleanup, which passes unplaced rows only. */
+export async function deleteBooks(ids: readonly string[]): Promise<void> {
+  if (ids.length === 0) return
+  const db = await getDB()
+  const tx = db.transaction('books', 'readwrite')
+  await Promise.all(ids.map((id) => tx.store.delete(id)))
+  await tx.done
+}
+
+/**
+ * Decide what the existing library means, now that `imported` exists.
+ *
+ * Every book already in storage predates the field, so this migration is the
+ * only thing that can say which of them were adopted. It runs in the safe
+ * direction and the direction matters more than anything else here: a book is
+ * flagged only when it is on **no poster at all**. Defaulting the field to
+ * `true`, or getting the test backwards, means the first cleanup deletes books
+ * that are sitting on posters the reader made.
+ *
+ * It also keys on `source === 'goodreads'`, so a searched or hand-added book
+ * that happens to be on no poster is never touched. That is a real state — a
+ * book deliberately added and later removed from every poster — and it is not
+ * import residue.
+ *
+ * Runs at startup beside `repairCoverLinks()` and is a no-op once done: a book
+ * that already carries the field either way is left alone, so this never
+ * re-flags a book that placement has since cleared.
+ */
+let backfillPromise: Promise<number> | undefined
+
+/**
+ * The migration, run once and awaitable by anyone who reads books.
+ *
+ * `useBoard` starts it, but it is not the only hook that reads the library —
+ * `useSuggestions` and `useStats` both do, on their own mounts, and React gives
+ * no ordering between sibling effects. So `useSuggestions` called `listBooks()`
+ * while the migration was still writing, got the library as it was before any
+ * flag existed, and offered a poster for a month whose books were about to be
+ * reclassified as unplaced. It looked like a stale suggestion and was a race.
+ *
+ * Memoising the promise rather than a boolean is what makes this safe: a second
+ * caller arriving mid-migration waits for the same run instead of starting its
+ * own or skipping ahead of one in flight.
+ */
+export function ensureImportedFlagBackfilled(): Promise<number> {
+  backfillPromise ??= backfillImportedFlag()
+  return backfillPromise
+}
+
+export async function backfillImportedFlag(): Promise<number> {
+  const db = await getDB()
+  const [books, boards] = await Promise.all([db.getAll('books'), db.getAll('boards')])
+
+  const undecided = books.filter(
+    (book) => book.imported === undefined && book.source === 'goodreads',
+  )
+  if (undecided.length === 0) return 0
+
+  // Every book id sitting in a slot on any poster.
+  const placed = new Set<string>()
+  boards.forEach((board) => {
+    board.slots.forEach((slot) => {
+      if (slot.bookId) placed.add(slot.bookId)
+    })
+  })
+
+  const tx = db.transaction('books', 'readwrite')
+  await Promise.all(
+    undecided.map((book) => tx.store.put({ ...book, imported: !placed.has(book.id) })),
+  )
+  await tx.done
+
+  return undecided.filter((book) => !placed.has(book.id)).length
 }
 
 /* Images ------------------------------------------------------------------ */

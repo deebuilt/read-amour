@@ -6,6 +6,7 @@ import {
   getBoard,
   listBoards,
   pruneOrphanedImages,
+  ensureImportedFlagBackfilled,
   repairCoverLinks,
   saveBoard,
   shrinkStoredUploads,
@@ -76,6 +77,13 @@ export function useBoard(): UseBoardResult {
       // A no-op once storage is consistent; it only fills a missing key from
       // the ownership recorded on the image, never overwrites a live one.
       await repairCoverLinks()
+
+      // Decide what the pre-`imported` library means, before anything reads a
+      // book. Awaited rather than fired off like the shrink below, because
+      // stats and suggestions filter on this flag — running it in the
+      // background would let the first read of the library count rows the
+      // migration is in the middle of marking, which is the bug being fixed.
+      await ensureImportedFlagBackfilled()
 
       const boards = await listBoards()
       if (cancelled) return
