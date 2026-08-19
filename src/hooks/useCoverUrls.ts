@@ -9,6 +9,13 @@ import type { Board, Book } from '../types/domain'
  *
  * Keyed on the board's slot contents rather than the board object, so moving a
  * slider or retitling the poster does not re-read every blob from IndexedDB.
+ *
+ * The board passed in is whichever one is ON SCREEN, which is not always the one
+ * in storage: a suggestion preview is a board built in memory and never saved,
+ * and its covers have to resolve exactly like a saved poster's. That is the
+ * honest reading of this hook's job — cover URLs for the board being rendered —
+ * and it is why the caller passes the displayed board rather than the hook
+ * reaching for the active one itself.
  */
 
 interface UseCoverUrlsResult {

@@ -55,6 +55,7 @@ export type PanelKind =
   | 'books'
   | 'posters'
   | 'stats'
+  | 'suggestions'
 
 /**
  * Every destination in the bar.

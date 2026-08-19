@@ -929,6 +929,20 @@ and reads as an accusation. What ports is that app's honesty rule — every
 generator returns `null` unless the evidence is there, so a thin library gets
 silence rather than a fabricated pattern.
 
+`docs/SUGGESTED_POSTERS.md` holds the plan for posters the app proposes on its
+own — five-star reads, a year in review, everything by one author — built from
+the same three columns the dashboard runs on, with the same generator-and-named-
+minimum architecture. It also plans the TBR poster, which needs a `status` field
+on `Book` and takes four exclusion consequences with it, and the StoryGraph CSV
+import, which shares the Goodreads importer rather than forking it.
+
+Read it before building any of it, chiefly for two things it settles. **A
+suggestion is a preview and must never write a poster on tap** — that is
+`handleUseMonth`'s destroyed month with a friendlier face. And **StoryGraph has
+no API**: the request has sat on their own roadmap as "Long-term" since March
+2021, and the unofficial scrapers are all server-side because a browser hits
+CORS, which is the Google Books wall again. CSV is the only door.
+
 ## Known gaps
 
 - **Cover resolution cannot be cancelled.** Closing the import drawer mid-fetch

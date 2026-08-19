@@ -1,0 +1,53 @@
+/*
+ * Sized to match `ThemeToggle` exactly — it replaces the 44px spacer that
+ * balanced the toggle, and the wordmark stays centred only while the two ends
+ * of the header agree on their width.
+ */
+.button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--ra-ink-soft);
+  transition: color 120ms ease;
+}
+
+.button:hover {
+  color: var(--ra-ink);
+}
+
+/* The open panel, marked the way the bottom bar marks its own active item. */
+.active {
+  color: var(--ra-accent);
+}
+
+.icon {
+  width: 19px;
+  height: 19px;
+  fill: currentColor;
+  stroke: none;
+}
+
+/*
+ * The count, tucked into the top-right of the glyph.
+ *
+ * Accent-coloured type rather than a filled badge: a badge is a notification
+ * and this is an offer. It sits over the corner the sparkle leaves empty, so
+ * nothing has to move to make room for it.
+ */
+.count {
+  position: absolute;
+  top: 7px;
+  right: 6px;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ra-accent);
+}

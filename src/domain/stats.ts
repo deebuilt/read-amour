@@ -147,12 +147,12 @@ export interface ReadingStats {
  * finished on the 1st, into the previous month. A poster would lose a book to
  * the month before it.
  */
-function monthOf(isoDate: string): string {
+export function monthOf(isoDate: string): string {
   return isoDate.slice(0, 7)
 }
 
 /** Same reasoning as `monthOf`: read the year off the string, never off a Date. */
-function yearOf(isoDate: string): number {
+export function yearOf(isoDate: string): number {
   return Number.parseInt(isoDate.slice(0, 4), 10)
 }
 

@@ -7,15 +7,19 @@ import { SlotEditor } from './components/controls/SlotEditor'
 import { BookList } from './components/controls/BookList'
 import { PostersPanel } from './components/controls/PostersPanel'
 import { ExportSheet, type ExportIntent } from './components/controls/ExportSheet'
+import { SuggestionsPanel } from './components/controls/SuggestionsPanel'
+import { PreviewBar } from './components/controls/PreviewBar'
 import { StatsPanel } from './components/stats/StatsPanel'
 import { Wordmark } from './components/chrome/Wordmark'
 import { ThemeToggle } from './components/chrome/ThemeToggle'
 import { AboutPanel } from './components/chrome/AboutPanel'
+import { SuggestButton } from './components/chrome/SuggestButton'
 import { ReleaseNotes } from './components/chrome/ReleaseNotes'
 import { MoreSheet } from './components/chrome/MoreSheet'
 import { WhatsNewNote } from './components/chrome/WhatsNewNote'
 import { BottomBar, type PanelKind } from './components/chrome/BottomBar'
 import { useBoard } from './hooks/useBoard'
+import { useSuggestions } from './hooks/useSuggestions'
 import { useCoverUrls } from './hooks/useCoverUrls'
 import { useBackgroundUrl } from './hooks/useBackgroundUrl'
 import { usePosterSize } from './hooks/usePosterSize'
@@ -46,9 +50,11 @@ import {
   type TransitionId,
 } from './export/posterVideo'
 import { monthName } from './import/goodreads'
-import { getBoardByMonth, saveBoard } from './storage/db'
+import { resolveCoversForBooks } from './api/covers'
+import type { Suggestion } from './domain/suggestions'
+import { getBoardByMonth, saveBoard, saveBooks } from './storage/db'
 import { buildAntTheme } from './design/antTheme'
-import type { Book } from './types/domain'
+import { gridCapacity, type Board, type Book } from './types/domain'
 import styles from './App.module.css'
 
 /**
@@ -79,6 +85,7 @@ const PANEL_TITLES: Record<PanelKind, string> = {
   books: 'Books on this poster',
   posters: 'Posters',
   stats: 'Reading stats',
+  suggestions: 'Poster ideas',
   slot: '',
 }
 
@@ -96,9 +103,36 @@ export default function App() {
     resetBoard,
     removeBoard,
   } = useBoard()
-  const { books, coverUrls, replaceBook } = useCoverUrls(board)
-  const backgroundUrl = useBackgroundUrl(board?.background)
+  /**
+   * A suggested poster, built in memory and shown on the stage unsaved.
+   *
+   * Nothing about it reaches storage until Keep. This is the whole safety
+   * property of the feature — see `PreviewBar` for the month of work the
+   * writes-on-tap version of this idea destroyed once already.
+   */
+  const [preview, setPreview] = useState<Board | undefined>()
+  /** Which suggestion the preview came from, so Keep can dismiss it after. */
+  const [previewSource, setPreviewSource] = useState<Suggestion | undefined>()
+  const [isResolvingCovers, setIsResolvingCovers] = useState(false)
+  const [isKeeping, setIsKeeping] = useState(false)
+
+  /**
+   * The board on screen — the preview when there is one, the saved poster
+   * otherwise. Everything that renders or exports reads this rather than
+   * `board`, so a preview behaves like a real poster in every way except that
+   * it has not been written down.
+   */
+  const displayed = preview ?? board
+
+  const { books, coverUrls, replaceBook } = useCoverUrls(displayed)
+  const backgroundUrl = useBackgroundUrl(displayed?.background)
   const { containerRef, posterWidth } = usePosterSize()
+  const {
+    suggestions,
+    isLoading: isLoadingSuggestions,
+    dismiss: dismissSuggestion,
+    reload: reloadSuggestions,
+  } = useSuggestions(boards)
 
   const posterRef = useRef<HTMLDivElement>(null)
   const [panel, setPanel] = useState<PanelKind | undefined>()
@@ -150,10 +184,23 @@ export default function App() {
    */
   const canShare = useMemo(() => canSharePoster(), [])
 
-  const openSlot = useCallback((index: number) => {
-    setActiveSlot(index)
-    setPanel('slot')
-  }, [])
+  /**
+   * Open a slot for editing.
+   *
+   * Ignored while a preview is on screen. Every slot mutation goes through
+   * `updateBoard`, which writes to storage and to the saved board — so editing a
+   * previewed poster would either silently save the preview or, worse, apply the
+   * edit to the poster hiding underneath it. A preview is a thing to accept or
+   * reject, and it becomes editable the moment it is kept.
+   */
+  const openSlot = useCallback(
+    (index: number) => {
+      if (preview) return
+      setActiveSlot(index)
+      setPanel('slot')
+    },
+    [preview],
+  )
 
   const handleSelectBook = useCallback(
     (book: Book) => {
@@ -171,6 +218,15 @@ export default function App() {
     setPanel(undefined)
     setActiveSlot(undefined)
   }, [board, activeSlot, updateBoard])
+
+  /**
+   * Drop the preview. Nothing was written, so there is nothing to undo — the
+   * poster underneath was never replaced, only covered.
+   */
+  const handleDiscardPreview = useCallback(() => {
+    setPreview(undefined)
+    setPreviewSource(undefined)
+  }, [])
 
   /**
    * Take a month from the CSV onto a poster of its own.
@@ -192,6 +248,9 @@ export default function App() {
    */
   const handleUseMonth = useCallback(
     async (month: string, monthBooks: Book[]) => {
+      // Same reasoning as `handleSwitchPoster`: an open preview would stay on
+      // the stage while the board underneath it changed.
+      handleDiscardPreview()
       const existing = await getBoardByMonth(month)
       // Bring the target on screen first: filling and then switching would
       // reload the pre-fill record from storage and throw the books away.
@@ -199,7 +258,7 @@ export default function App() {
       const target = existing ?? (await startNewBoard(month, monthName(month)))
       updateBoard(fillSlots(clearSlots(target), monthBooks))
     },
-    [startNewBoard, switchBoard, updateBoard],
+    [startNewBoard, switchBoard, updateBoard, handleDiscardPreview],
   )
 
   /**
@@ -221,23 +280,118 @@ export default function App() {
     [refreshBoards],
   )
 
-  // Switching or starting a poster replaces what is on screen, so the panel
-  // closes with it — leaving it open over a poster the user did not ask for
-  // reads as though the tap failed.
+  /**
+   * Show a suggestion, without saving anything.
+   *
+   * The board is assembled here in memory — `createBoard`, then its grid, then
+   * the books — and handed to the stage. Storage is not touched, `useBoard` is
+   * not told, and the poster the reader had open is still exactly where it was.
+   *
+   * Covers resolve after the preview is on screen rather than before it, the
+   * way the import panel does it. A cross-month selection routinely includes
+   * books whose covers were never fetched — covers arrive per month, and a
+   * five-star year cuts across all of them — so blocking the preview on the
+   * network would mean tapping a suggestion and watching a spinner for however
+   * long twenty lookups take.
+   */
+  const handlePreviewSuggestion = useCallback(
+    async (suggestion: Suggestion) => {
+      const fresh = createBoard(suggestion.month, suggestion.title)
+      const shaped: Board = {
+        ...fresh,
+        grid: suggestion.grid,
+        slots: Array.from({ length: gridCapacity(suggestion.grid) }, (_, index) => ({
+          index,
+        })),
+        text: { ...fresh.text, subtitle: suggestion.subtitle },
+      }
+
+      setPreview(fillSlots(shaped, suggestion.books))
+      setPreviewSource(suggestion)
+      setPanel(undefined)
+
+      // Only the books that still have no cover, so a library that has already
+      // been through an import makes no requests at all.
+      const missing = suggestion.books.filter((book) => !book.coverBlobKey)
+      if (missing.length === 0) return
+
+      setIsResolvingCovers(true)
+      try {
+        const covers = await resolveCoversForBooks(missing)
+        if (covers.size === 0) return
+
+        // `flatMap` rather than map-then-filter: spreading a resolved key onto
+        // a book narrows `coverBlobKey` to `string`, which is narrower than
+        // `Book` — so a `book is Book` predicate is not a legal narrowing and
+        // the build rejects it. Returning zero or one element per book says the
+        // same thing without asserting a type at all.
+        const updated: Book[] = missing.flatMap((book) => {
+          const coverBlobKey = covers.get(book.id)
+          return coverBlobKey ? [{ ...book, coverBlobKey }] : []
+        })
+
+        // Books are written even though the poster is not. A resolved cover is
+        // a fact about the book, not about this preview — it belongs to the
+        // library whether or not the reader keeps the poster, and discarding
+        // one should not throw away the fetching it just paid for.
+        await saveBooks(updated)
+        updated.forEach(replaceBook)
+      } finally {
+        setIsResolvingCovers(false)
+      }
+    },
+    [replaceBook],
+  )
+
+  /**
+   * Save the previewed poster and switch to it.
+   *
+   * Always a NEW poster, never a replacement for the open one — the same rule
+   * import follows, and for the same reason. The suggestion is dismissed on the
+   * way out: it has been taken, so continuing to offer it would be the app
+   * suggesting a poster that now exists.
+   */
+  const handleKeepPreview = useCallback(async () => {
+    if (!preview) return
+    setIsKeeping(true)
+    try {
+      await saveBoard(preview)
+      if (previewSource) dismissSuggestion(previewSource.id)
+      setPreview(undefined)
+      setPreviewSource(undefined)
+      await switchBoard(preview.id)
+      reloadSuggestions()
+    } finally {
+      setIsKeeping(false)
+    }
+  }, [preview, previewSource, dismissSuggestion, switchBoard, reloadSuggestions])
+
+  /**
+   * Asking for a different poster abandons an open preview.
+   *
+   * `displayed` prefers the preview over the saved board, so leaving one up
+   * across a switch would keep the suggested poster on the stage while the app
+   * quietly changed which board was underneath it — the switch would read as
+   * having failed, and the reader could then export the preview believing it
+   * was the poster they had just chosen. Nothing was written, so dropping it
+   * costs only the covers, which were saved to the library on their own.
+   */
   const handleSwitchPoster = useCallback(
     (id: string) => {
+      handleDiscardPreview()
       void switchBoard(id)
       setPanel(undefined)
     },
-    [switchBoard],
+    [switchBoard, handleDiscardPreview],
   )
 
   const handleStartPoster = useCallback(
     (month: string, title: string) => {
+      handleDiscardPreview()
       void startNewBoard(month, title)
       setPanel(undefined)
     },
-    [startNewBoard],
+    [startNewBoard, handleDiscardPreview],
   )
 
   // The panel stays open: clearing empties the list you are looking at, and
@@ -323,12 +477,12 @@ export default function App() {
   /** Titles by slot index, so the move list can name what it would swap with. */
   const slotLabels = useMemo(() => {
     const labels = new Map<number, string>()
-    board?.slots.forEach((slot) => {
+    displayed?.slots.forEach((slot) => {
       const title = slot.bookId ? books.get(slot.bookId)?.title : undefined
       if (title) labels.set(slot.index, title)
     })
     return labels
-  }, [board, books])
+  }, [displayed, books])
 
   /**
    * Render the poster and hand it to whichever export was chosen.
@@ -339,7 +493,10 @@ export default function App() {
    */
   const runExport = useCallback(
     async (intent: ExportIntent) => {
-      if (!posterRef.current || !board) return
+      // The displayed board, not the saved one: `posterRef` renders whatever is
+      // on the stage, so exporting a preview against `board` would name the file
+      // after the poster hiding underneath and animate the wrong slot count.
+      if (!posterRef.current || !displayed) return
       setExporting(intent)
       setVideoProgress(0)
       setIsExporting(true)
@@ -349,8 +506,8 @@ export default function App() {
         if (intent === 'video' || intent === 'shareVideo') {
           // The animation captures the poster through the same affordance-free
           // render as the PNG — see `posterToVideo`.
-          const fileName = posterFileName(board.month, 'mp4')
-          const blob = await posterToVideo(posterRef.current, board, {
+          const fileName = posterFileName(displayed.month, 'mp4')
+          const blob = await posterToVideo(posterRef.current, displayed, {
             fileName,
             durationMs: videoDuration,
             transition: videoTransition,
@@ -364,7 +521,7 @@ export default function App() {
             await saveBlob(blob, fileName, 'video/mp4')
           }
         } else {
-          const options = { fileName: posterFileName(board.month) }
+          const options = { fileName: posterFileName(displayed.month) }
           if (intent === 'save') {
             await savePoster(posterRef.current, options)
           } else {
@@ -378,7 +535,7 @@ export default function App() {
         setVideoProgress(0)
       }
     },
-    [board, videoDuration, videoTransition],
+    [displayed, videoDuration, videoTransition],
   )
 
   /** Months that already have a poster, so the import list can mark them. */
@@ -397,8 +554,15 @@ export default function App() {
       <AntApp>
         <div className={styles.app}>
           <header className={styles.header}>
-            {/* Offsets the toggle so the wordmark stays optically centred. */}
-            <span className={styles.headerSpacer} />
+            {/* The slot that used to be a spacer offsetting the toggle. The
+                button is the same 44px, so the wordmark stays centred by the
+                same arithmetic — see `SuggestButton` for why this corner and
+                not the More menu. */}
+            <SuggestButton
+              count={suggestions.length}
+              isActive={panel === 'suggestions'}
+              onClick={() => setPanel('suggestions')}
+            />
             <button
               type="button"
               className={styles.wordmarkButton}
@@ -411,14 +575,14 @@ export default function App() {
           </header>
 
           <main className={styles.stage} ref={containerRef}>
-            {isLoading || !board ? (
+            {isLoading || !displayed ? (
               <div className={styles.loading}>
                 <Spin />
               </div>
             ) : (
               <Poster
                 ref={posterRef}
-                board={board}
+                board={displayed}
                 books={books}
                 coverUrls={coverUrls}
                 backgroundUrl={backgroundUrl}
@@ -428,6 +592,18 @@ export default function App() {
               />
             )}
           </main>
+
+          {/* An unsaved poster has to say so, in the one place a notice fits
+              without covering the artwork being judged. */}
+          {preview && (
+            <PreviewBar
+              title={preview.text.title}
+              isResolving={isResolvingCovers}
+              isSaving={isKeeping}
+              onKeep={() => void handleKeepPreview()}
+              onDiscard={handleDiscardPreview}
+            />
+          )}
 
           {/* Above the bar and below the poster: the one place a notice can go
               without covering the artwork. Renders nothing until a build is
@@ -473,6 +649,16 @@ export default function App() {
                 onUseMonth={(month, monthBooks) => void handleUseMonth(month, monthBooks)}
                 usedMonths={usedMonths}
                 onCreateAll={handleCreateAllPosters}
+              />
+            )}
+            {panel === 'suggestions' && (
+              <SuggestionsPanel
+                suggestions={suggestions}
+                isLoading={isLoadingSuggestions}
+                coverUrls={coverUrls}
+                onPreview={(suggestion) => void handlePreviewSuggestion(suggestion)}
+                onDismiss={dismissSuggestion}
+                onImport={() => setPanel('import')}
               />
             )}
             {panel === 'about' && <AboutPanel onRestored={() => void refreshBoards()} />}
@@ -536,7 +722,7 @@ export default function App() {
             transition={videoTransition}
             onTransitionChange={setVideoTransition}
             onDurationChange={setVideoDuration}
-            coverCount={board ? filledCount(board) : 0}
+            coverCount={displayed ? filledCount(displayed) : 0}
             videoProgress={videoProgress}
             onSave={() => void runExport('save')}
             onSaveVideo={() => void runExport('video')}

@@ -55,6 +55,16 @@ export interface Release {
 
 export const RELEASES: readonly Release[] = [
   {
+    version: '0.5.0',
+    date: '2026-08-18',
+    headline: 'Poster ideas.',
+    changes: [
+      'Tap the sparkle in the top left to see suggested posters: five-star reads, year in review, biggest month, everything by the most-read author.',
+      'Tapping an idea shows you the poster before it is saved. Keep it or discard it.',
+      'An idea you do not want can be dismissed.',
+    ],
+  },
+  {
     version: '0.4.6',
     date: '2026-08-17',
     headline: 'Adding a book by hand no longer requires a cover.',
