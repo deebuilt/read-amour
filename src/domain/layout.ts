@@ -1,6 +1,6 @@
 import { POSTER, poster as tokens } from '../design/tokens'
 import { getTypeface } from '../design/typefaces'
-import type { GridConfig, PosterText } from '../types/domain'
+import type { GridConfig, PosterDensity, PosterText } from '../types/domain'
 
 /**
  * Grid geometry for the poster.
@@ -98,8 +98,8 @@ function bottomReserve(text?: PosterText): number {
  * That deliberately breaks the app's oldest promise, the one written into
  * `tokens.slotAspectRatio` — "slots match 2:3 so covers never crop". Cropping
  * is the entire point of a bleed layout, so for this mode only it is correct.
- * `supportsCoverBleed` is what keeps it honest: it restricts the mode to the
- * shapes where the crop is a 16% trim rather than a mutilation.
+ * How much a given shape crops is `coverBleedCrop`, which is reported to the
+ * reader beside the switch rather than used to forbid anything.
  */
 function bleedLayout(grid: GridConfig): GridLayout {
   const slotWidth = POSTER.width / grid.columns
@@ -114,21 +114,46 @@ function bleedLayout(grid: GridConfig): GridLayout {
   }
 }
 
+/**
+ * The density a board is using, falling back to the shipped defaults.
+ *
+ * One place, so a board with no density and a board with the default density
+ * lay out identically — the fallback cannot drift from the tokens it stands in
+ * for, because it reads them.
+ */
+export function densityOf(density?: PosterDensity): PosterDensity {
+  return {
+    gridMarginX: density?.gridMarginX ?? tokens.gridMarginX,
+    gridGap: density?.gridGap ?? tokens.gridGap,
+    titleTop: density?.titleTop ?? tokens.titleTop,
+  }
+}
+
 export function layoutGrid(
   grid: GridConfig,
   text?: PosterText,
   coverBleed = false,
+  density?: PosterDensity,
 ): GridLayout {
   if (coverBleed) return bleedLayout(grid)
 
   const { columns, rows } = grid
-  const gap = tokens.gridGap
+  const { gridMarginX, gridGap: gap, titleTop } = densityOf(density)
 
-  const availableWidth = POSTER.width - tokens.marginX * 2
+  // `gridMarginX`, not `marginX` — the covers are allowed closer to the edge
+  // than the title and the handle are. See the note on both in `tokens.ts`.
+  //
+  // This is the only lever that makes a cover bigger. Slots are locked to 2:3,
+  // so a slot cannot widen without growing 1.5x taller and the frame has no
+  // spare height — which means no rearrangement of rows and columns reaches the
+  // covers, and the frame's own margins are the whole game. The real ceiling is
+  // the canvas: 1080 across three columns is 360px a slot, and at margin 0 that
+  // is exactly what a 3x2 gets.
+  const availableWidth = POSTER.width - gridMarginX * 2
   // Falls back to the nominal band when no text is supplied, so callers that
   // only care about slot size need not thread it through.
   const measured = text ? titleBlockHeight(text) + TITLE_TO_GRID_GAP : tokens.titleBand
-  const bandTop = tokens.titleTop + measured
+  const bandTop = titleTop + measured
 
   // A tall grid may claim part of the bottom clearance rather than shrinking
   // sideways and stranding wide empty margins. The title band is never

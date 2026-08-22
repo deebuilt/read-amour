@@ -31,3 +31,6 @@ scripts/.originals/
 # Personal reading history. If a Goodreads export is dropped in here for
 # testing, it must not be committed.
 *goodreads*.csv
+
+# Build output capture, overwritten each run.
+build.log

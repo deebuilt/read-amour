@@ -71,3 +71,18 @@
 
 /* The bottom navigation lives in `components/chrome/BottomBar`, with its own
    styles. It moved out of here when the items gained labels. */
+
+/*
+ * The layout button's band, between the poster and the bottom bar.
+ *
+ * Right-aligned so the popover it opens (placement topRight) rises against the
+ * same edge rather than crossing the poster. The inline padding is what pulls
+ * the popover in off the screen edge — it is wider than the button needs, so
+ * the panel sits a little further from the frame and leaves a readable column
+ * of poster beside it.
+ */
+.layoutRow {
+  display: flex;
+  justify-content: flex-end;
+  padding: 6px 20px 0;
+}

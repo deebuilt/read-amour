@@ -96,13 +96,40 @@ export const radius = {
 /**
  * Poster geometry, in export pixels against the 1080x1920 canvas.
  *
- * `marginX` and the band heights are fixed; the SLOT SIZE IS NOT. Slot size is
+ * The margins and the band heights are fixed; the SLOT SIZE IS NOT. Slot size is
  * computed per grid in `layoutGrid` so the block always fits the space between
  * the title and the bottom margin. A fixed slot size looks correct at one grid
  * shape and runs off the canvas at others.
  */
 export const poster = {
+  /**
+   * Side margin for the title and caption.
+   *
+   * Type wants more air than artwork does. A headline set close to the edge
+   * reads as a mistake where a cover bled toward it reads as a full-bleed
+   * poster, so this stayed at 72 when `gridMarginX` came down.
+   */
   marginX: 72,
+  /**
+   * Side margin for the grid, which is smaller than the type's on purpose.
+   *
+   * The covers are the poster. Everything else on it — the title, the handle —
+   * is a label on the thing, and the thing was being kept 72px from the edge
+   * for no reason except that one number served both jobs.
+   *
+   * **This is the only lever that makes a cover bigger.** Slots are locked to
+   * 2:3 so they never crop, which means a slot cannot widen without growing
+   * 1.5x taller, and the frame has no spare height. So every wide shape is
+   * pressed flat against the available width already — 4x2, 3x3, 4x4 and 5x4
+   * each had exactly this margin as their only slack, and rearranging rows and
+   * columns could never reach it. Taking 32px off each side is what actually
+   * hands that space to the artwork.
+   *
+   * The gain runs 4.5% on 2x2 to 11.2% on 5x4, and the smallest slots gain the
+   * most, which is the right way round — a 171px cover on a 5x4 needed it and a
+   * 458px cover on a 2x2 did not.
+   */
+  gridMarginX: 40,
   titleTop: 132,
   titleGap: 18,
   /** Vertical space reserved for the title block below `titleTop`. */
@@ -112,7 +139,16 @@ export const poster = {
   gridBottom: 260,
   /** The least clearance a tall grid may leave before it must shrink instead. */
   gridBottomMin: 150,
-  gridGap: 20,
+  /**
+   * Space between covers.
+   *
+   * Was 20, and every pixel of it is multiplied: a 5-column grid spends four
+   * gaps across, so trimming 8px hands 32px back to the covers on exactly the
+   * shapes whose slots are smallest. Deliberately not zero — touching covers
+   * read as one collaged block rather than as separate books, and that is what
+   * cover-bleed mode is for.
+   */
+  gridGap: 12,
   /** Book covers are near-universally 2:3. Slots match so covers never crop. */
   slotAspectRatio: 2 / 3,
   /** Breathing room inside the title plate, when one is used. */

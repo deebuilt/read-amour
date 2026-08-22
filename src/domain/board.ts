@@ -38,18 +38,22 @@ export function isOfferedGrid(grid: GridConfig): boolean {
 /**
  * Nearest offered shape to a grid the app no longer offers.
  *
- * Boards were once free to be any shape from 2x2 to 5x6, and the taller ones
- * stranded most of the frame in margin. Those still exist in storage.
+ * Two generations of board have to pass through here. Boards were once free to
+ * be any shape from 2x2 to 5x6 under the sliders; then came a fixed catalogue
+ * of square-or-wider shapes; and that catalogue was itself replaced by the tall
+ * shapes, which give each cover more area. So a 4x2 board saved last week is as
+ * much a stranger to the current catalogue as a 2x6 from before it existed.
  *
  * The one hard rule is that capacity may never shrink: a 2x6 board holds twelve
  * books, and mapping it to anything smaller would drop the overflow off the
  * poster. So this takes the smallest offered layout that still holds everything
- * the old one did — 2x6 becomes 4x3, same twelve slots, full frame width. Ties
- * on capacity go to the shape closest to the original's proportions, so a wide
- * board stays wide.
+ * the old one did. Ties on capacity go to the shape closest to the original's
+ * proportions.
  *
- * A shape too big for anything offered falls to the largest, which can only
- * happen for 5x5 and 5x6 — both above the 20 the app now tops out at.
+ * Every shape either generation could hold maps to a layout of exactly the same
+ * capacity — 4x2 to 2x4, 5x4 to 4x5, 2x6 to 3x4 — so the wide-to-tall change
+ * costs no board a book. The only shapes that lose anything are 4x6, 5x5 and
+ * 5x6, which were already above the 20 the app tops out at before this.
  */
 export function nearestOfferedGrid(grid: GridConfig): GridConfig {
   if (isOfferedGrid(grid)) return grid
@@ -78,8 +82,10 @@ export function nearestOfferedGrid(grid: GridConfig): GridConfig {
 export function migrateBoard(board: Board): Board {
   let migrated = board
 
-  // Grids taller than they are wide stranded up to 378px of margin per side.
-  // Those boards predate the fixed catalogue of shapes and must be remapped.
+  // Any board whose shape the catalogue no longer offers is remapped. That is
+  // now two populations: the free slider shapes from before the catalogue, and
+  // the wide shapes the catalogue itself offered until they were replaced by
+  // their taller counterparts.
   //
   // `resizeGrid` alone is not safe here: it keeps books by slot index, so a
   // board with a gap early on would drop a book off the end while empty slots

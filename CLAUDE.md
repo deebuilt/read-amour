@@ -306,45 +306,97 @@ quota-limited to zero from some networks (a hard 429 on 2026-08-15), so even the
 metadata-only fallback would fail unpredictably. Apple supersedes that whole
 plan.
 
-## A fixed catalogue of grid shapes, and rows never exceed columns
+## A fixed catalogue of grid shapes, one per capacity, each as large as it goes
 
-The grid used to be two sliders, 2–5 columns by 2–6 rows. Most of the shapes
-they could reach did not fill the poster: a 2×6 grid strands **378px of margin
-per side** and uses 30% of the frame width. 2×3 — a shape someone would
-plausibly pick — strands 212px.
+The grid used to be two sliders, 2–5 columns by 2–6 rows, which asked the reader
+to solve a geometry problem in order to answer the question she actually had:
+how many books fit. `GRID_LAYOUTS` in `types/domain.ts` replaced them and is the
+whole catalogue — 1, 2, 4, 6, 8, 9, 10, 12, 15, 16, 20 books.
 
-It is not a max-width and it is not a bug in `layoutGrid`. The frame is 9:16
-and slots are locked to 2:3 so covers never crop, so a grid taller than it is
-wide runs out of height before it runs out of width. The leftover width has
-nowhere to go, because widening a slot makes it taller and it no longer fits.
-It falls into the margins.
+**One shape per capacity, and it is always the one that makes the covers
+biggest.** That is the entire selection rule. 5×5 (25) is left out on purpose:
+152px slots on a 1080px poster are a postage stamp on a phone and turn the star
+ratings into specks.
 
-The rule this yields is exact: **rows may never exceed columns.** Every
-square-or-wider shape is width-bound and fills the frame at the designed 72px
-margin. Every taller-than-wide shape strands margin, in proportion to how tall.
+### The rule this replaced, because the reasoning is a trap worth naming
 
-So the shape is not a free choice, and `GRID_LAYOUTS` in `types/domain.ts` is
-the whole catalogue — 1, 2, 4, 6, 8, 9, 10, 12, 15, 16, 20 books. Anything added
-to it must satisfy rows ≤ columns. 5×5 (25) satisfies that and is still left out
-on purpose: 152px slots on a 1080px poster are a postage stamp on a phone and
-turn the star ratings into specks.
+The catalogue used to say **rows may never exceed columns**, and the geometry
+behind it is correct. The frame is 9:16 and slots are locked to 2:3 so covers
+never crop, so a grid taller than it is wide runs out of height before width.
+The leftover width has nowhere to go — widening a slot makes it taller and it no
+longer fits — and it falls into the side margins. A 2×6 strands 378px per side.
 
-1×1 and 2×1 were added on 2026-08-16, below what had been a floor of four —
-which forced a reader with one book she loved into a grid with three empty
-rectangles. 1×1 was expected to strand margin and does not: `layoutGrid`'s
-generous path lets a one-row grid claim the bottom clearance, so it lands
-width-bound at the full 936px like every other shape. Only a caption *with* a
-title plate pushes it to 852px.
+All true, and **the conclusion does not follow.** A tall grid trades width for
+height: it goes height-bound, claims the full vertical run, and each slot comes
+out *larger*. Stranded margin and cover size are two different things to
+optimise, and the old rule silently picked the first without ever asking which
+one the poster is for.
 
-The picker offers these by **capacity first** — the user is choosing how many
-books fit, not solving a geometry problem — with the shape shown underneath,
-since on a poster the arrangement is a real preference.
+Measured on every pair that shares a capacity, no caption and no plate:
 
-`migrateBoard()` remaps boards saved under the old sliders. It reads the books
-out in order and re-places them from the top rather than calling `resizeGrid`,
-which keeps books by slot index and would drop one off the end when an early
-slot was empty. Capacity never shrinks except for boards over 20 (old 4×6,
-5×5, 5×6), where no offered shape can hold them.
+```
+ 8 books   2×4 → 231px slots, 31.0% of the frame in covers
+           4×2 → 219px slots, 27.8%
+ 6 books   2×3 → 313px        3×2 → 299px
+12 books   3×4 → 231px        4×3 → 219px
+20 books   4×5 → 182px        5×4 → 171px
+```
+
+The tall shape wins every pair, so the wide ones are gone rather than kept
+alongside. Ruthnie noticed this on a phone before any of it was measured — the
+eight-book poster looked like it was wasting space, and it was.
+
+**The general lesson, which is why this is written out at length:** a rule
+derived from real geometry can still optimise the wrong quantity. Before adding
+a shape, state which quantity it maximises.
+
+### What did not move
+
+**The squares already won their capacities.** 1×1, 2×2, 3×3 and 4×4 give the
+largest slots at 1, 4, 9 and 16, so they survive unchanged — which means
+`supportsCoverBleed` still has exactly the shapes it had. Bleed requires
+`columns === rows` because a square grid on a 9:16 frame yields 9:16 slots and a
+16% trim.
+
+**But that rule is now doing something it did not used to.** Under the wide
+catalogue, "square" and "crops least" picked out the same shapes. They have come
+apart: 3×4 crops 11% and 4×5 crops 5%, both *better* than the squares' 16%, and
+both excluded because the test is `columns === rows` rather than a crop
+threshold. Noted in the code at `supportsCoverBleed`, deliberately not changed —
+it would alter how existing boards look.
+
+1×1 is the shape that proves the tall-grid mechanism. A single 2:3 slot at full
+width is 1404px tall, more than the frame has between the title and the bottom
+margin, so it reads as certain to strand margin. It does not: `layoutGrid`'s
+generous path lets a tall grid claim the bottom clearance down to
+`gridBottomMin`, and at one row that is enough to land width-bound at the full
+936px. Only a caption *with* a title plate pushes it to 852px.
+
+### The picker preview had the same bug as the catalogue
+
+`.preview` sized each cell with `aspect-ratio: 2/3` and let the column count set
+the width — which is correct only while every shape is width-bound. A 2×5 built
+that way stacks 102px of cells inside a 48px frame and spills out of the poster
+outline it is drawn inside, on six of the eleven shapes.
+
+`previewCell()` in `GridPicker.tsx` now fits the miniature by **both**
+dimensions, which is `layoutGrid`'s constraint in miniature. It also makes the
+preview honest: a tall grid really does leave margin at the sides, and the
+picker now shows that instead of hiding it.
+
+### Migration
+
+`migrateBoard()` remaps any board whose shape is no longer offered, which is now
+two populations: the free slider shapes from before the catalogue, and the wide
+shapes the catalogue itself offered until 2026-08-22. It reads the books out in
+order and re-places them from the top rather than calling `resizeGrid`, which
+keeps books by slot index and would drop one off the end when an early slot was
+empty.
+
+Every shape either generation could hold maps to a layout of **exactly the same
+capacity** — 4×2 to 2×4, 5×4 to 4×5, 2×6 to 3×4 — so the wide-to-tall change
+costs no board a book. Capacity only shrinks for old 4×6, 5×5 and 5×6, all of
+which were already above the 20 the app tops out at.
 
 ## The design drawer collapses selectively, not wholesale
 
@@ -613,12 +665,21 @@ same guard.
 
 `coverBleed` drops the margins, the gap and the title band, and the covers crop
 to fill. How much of a cover survives is decided entirely by how far the slot's
-aspect sits from 2:3, and the spread is brutal: 16% lost on the square shapes,
-32% on 5x4, 44% on 3x2, 58% on 2x1, **66% on 5x2**.
+aspect sits from 2:3, and the spread is wide: 5% on 4x5, 11% on 3x4, 16% on the
+square shapes, 21% on 2x3, 29% on 3x5, 41% on 1x2 and 2x4, **53% on 2x5**.
 
 The 16% is not luck. The frame is 9:16, so a grid whose columns-to-rows ratio
 equals the frame's own yields slots that are themselves 9:16 — and those are
-exactly the square shapes. `supportsCoverBleed()` encodes that, and the switch
+exactly the square shapes.
+
+**Since the catalogue went tall, the square test is no longer the same thing as
+cropping least.** 3x4 and 4x5 crop *less* than the squares and are still
+excluded, because `supportsCoverBleed()` tests `columns === rows` rather than
+measuring the crop. Under the old wide catalogue the two rules agreed and
+nothing distinguished them. Widening this to a crop threshold is a real gain and
+a change to how existing boards look, so it is recorded and not taken quietly.
+
+`supportsCoverBleed()` encodes the square rule, and the switch
 in `DesignPanel` explains what the shape must be rather than letting the reader
 produce a ruined poster and blame the mode.
 

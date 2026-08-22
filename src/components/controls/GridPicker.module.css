@@ -1,6 +1,6 @@
 /*
  * A wrapping grid of options rather than a scrolling row — the same reasoning
- * as the background swatches. Nine layouts fit two or three to a line on a
+ * as the background swatches. Eleven layouts fit two or three to a line on a
  * phone without anything hiding off the edge.
  */
 .options {
@@ -36,25 +36,47 @@
  * The shape preview is a miniature of the poster frame, so the choice is
  * legible as a picture and not only as a number. Fixed 9:16 like the real
  * thing, with the cells laid out at the actual column and row count.
+ *
+ * The cell size is set inline per option rather than here, and it has to be.
+ * A cell sized from the column count alone — which is what `aspect-ratio` on
+ * the cell amounts to — is only safe while every offered shape is
+ * width-bound, and that stopped being true when the catalogue went tall. A 2x5
+ * stack of 2:3 cells at a fifth of the width runs 102px tall inside a 48px
+ * frame: the preview would spill over its own poster outline on six of the
+ * eleven shapes.
+ *
+ * So the miniature is fitted by BOTH dimensions, exactly as `layoutGrid` fits
+ * the real thing. See `previewCell` in `GridPicker.tsx`, which also owns the
+ * frame size and hands it here as `--ra-preview-*` — the arithmetic needs those
+ * numbers, and a second copy written in this file would drift out of agreement
+ * with it.
  */
 .preview {
   display: grid;
-  gap: 2px;
-  width: 27px;
+  gap: var(--ra-preview-gap);
+  width: var(--ra-preview-width);
   aspect-ratio: 9 / 16;
   align-content: center;
+  justify-content: center;
 }
 
+/*
+ * Opacity is deliberately high on both states.
+ *
+ * These cells are the only picture of what a layout does, at 5-12px across, and
+ * they were washed out at 0.45 — legible as a block, not as a grid, which is
+ * the one thing the preview is for. A miniature this small needs more contrast
+ * than a full-size element, not less.
+ */
 .cell {
-  aspect-ratio: 2 / 3;
   border-radius: 1px;
   background: var(--ra-ink-faint);
-  opacity: 0.45;
+  opacity: 0.85;
 }
 
 .optionActive .cell {
   background: var(--ra-accent);
-  opacity: 0.7;
+  opacity: 1;
 }
 
 .count {
@@ -69,4 +91,15 @@
   line-height: 1;
   color: var(--ra-ink-faint);
   font-variant-numeric: tabular-nums;
+}
+
+/*
+ * The flip mark, on the selected card only.
+ *
+ * Quiet on purpose: it reports that a second tap does something, and it sits
+ * next to the shape it would change. Loud enough to notice once, not loud
+ * enough to compete with the book count, which is the number being chosen.
+ */
+.flip {
+  opacity: 0.55;
 }

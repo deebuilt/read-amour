@@ -28,9 +28,9 @@ import type { CoverSearchResult } from '../types/domain'
 const SEARCH_URL = 'https://itunes.apple.com/search'
 
 /**
- * Artwork is served at a size baked into the URL. Poster slots run from 458px
- * wide on a 2x2 grid down to 185px on a 5x4, so 600 is sharp everywhere at a
- * quarter the bytes of 1200.
+ * Artwork is served at a size baked into the URL. Poster slots run from 936px
+ * wide on a 1x1 down to 182px on a 4x5, so 600 is sharp everywhere the covers
+ * are small enough to need it, at a quarter the bytes of 1200.
  */
 const ARTWORK_SIZE = 600
 

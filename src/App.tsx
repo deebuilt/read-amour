@@ -18,6 +18,7 @@ import { ReleaseNotes } from './components/chrome/ReleaseNotes'
 import { MoreSheet } from './components/chrome/MoreSheet'
 import { WhatsNewNote } from './components/chrome/WhatsNewNote'
 import { BottomBar, type PanelKind } from './components/chrome/BottomBar'
+import { LayoutButton } from './components/controls/LayoutButton'
 import { useBoard } from './hooks/useBoard'
 import { useSuggestions } from './hooks/useSuggestions'
 import { useCoverUrls } from './hooks/useCoverUrls'
@@ -615,6 +616,24 @@ export default function App() {
               />
             )}
           </main>
+
+          {/*
+            Layout and spacing, in one button in the chrome under the poster.
+
+            Not in the design drawer: that is an 82vh sheet over the artwork
+            these two settings exist to change. Not a row of buttons here
+            either — an earlier pass put eleven book counts in a scrolling
+            strip, which was fast and turned one decision into permanent
+            furniture. One button opening a narrow popover keeps the poster
+            visible beside it.
+
+            Outside the poster frame, so nothing here reaches the export.
+          */}
+          {board && !isLoading && (
+            <div className={styles.layoutRow}>
+              <LayoutButton board={displayed ?? board} onChange={updateBoard} />
+            </div>
+          )}
 
           {/* An unsaved poster has to say so, in the one place a notice fits
               without covering the artwork being judged. */}

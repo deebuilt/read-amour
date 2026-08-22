@@ -29,9 +29,9 @@ import {
  * learned the hard way carry over intact:
  *
  * **A generator returns nothing below its own minimum.** Five-star reads over
- * two books offers a 2x1 poster or does not appear at all. It never pads a 4x4
+ * two books offers a 1x2 poster or does not appear at all. It never pads a 4x4
  * with fourteen empty rectangles — which is the exact complaint that put 1x1 and
- * 2x1 into `GRID_LAYOUTS`.
+ * 1x2 into `GRID_LAYOUTS`.
  *
  * **Dates are sliced, never parsed.** `monthOf` and `yearOf` are imported from
  * `stats.ts` rather than rewritten here. `new Date('2026-08-01')` reads as UTC
@@ -147,9 +147,9 @@ export interface SuggestionContext {
  * The smallest offered shape that holds this many books.
  *
  * The reader is choosing a poster, not solving a geometry problem, and
- * `GRID_LAYOUTS` makes the answer safe: every offered shape satisfies
- * rows <= columns and therefore fills the frame. See the geometry note in
- * `types/domain.ts` rather than re-deriving it here.
+ * `GRID_LAYOUTS` makes the answer safe: it offers one shape per capacity, and
+ * it is always the one that gives each cover the most area. See the geometry
+ * note in `types/domain.ts` rather than re-deriving it here.
  *
  * `undefined` above `MAX_GRID_CAPACITY`, which callers handle by truncating and
  * *saying so* — never by silently dropping the tail.

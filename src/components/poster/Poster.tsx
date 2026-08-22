@@ -1,8 +1,8 @@
 import { forwardRef } from 'react'
 import { POSTER, poster as posterTokens } from '../../design/tokens'
-import { layoutGrid } from '../../domain/layout'
+import { densityOf, layoutGrid } from '../../domain/layout'
 import { getTypeface } from '../../design/typefaces'
-import { supportsCoverBleed, type Board, type Book } from '../../types/domain'
+import type { Board, Book } from '../../types/domain'
 import { PosterBackground } from './PosterBackground'
 import { PosterSlot } from './PosterSlot'
 import styles from './Poster.module.css'
@@ -44,18 +44,22 @@ export const Poster = forwardRef<HTMLDivElement, PosterProps>(function Poster(
 
   const { columns, rows } = board.grid
 
-  /**
-   * Cover bleed only applies where it does not wreck the covers.
-   *
-   * The flag is kept on the board even while a shape cannot honour it, so
-   * moving from 4x4 to 5x2 and back restores the mode rather than silently
-   * forgetting it. See `supportsCoverBleed` for why the shape decides.
-   */
-  const isBleeding = board.coverBleed === true && supportsCoverBleed(board.grid)
+  // Every shape may bleed. The mode used to be restricted to square grids and
+  // is not any more — see `supportsCoverBleed` for why that rule was measuring
+  // the wrong thing.
+  const isBleeding = board.coverBleed === true
 
   // Slot size and grid position are fitted to the frame and to the real height
   // of the title block, never assumed — see `layoutGrid`.
-  const { slotWidth, slotHeight, gridTop } = layoutGrid(board.grid, board.text, isBleeding)
+  // Density is per board and adjustable: margin, gap and the space above the
+  // title are the only things standing between the covers and the frame edge.
+  const density = densityOf(board.density)
+  const { slotWidth, slotHeight, gridTop } = layoutGrid(
+    board.grid,
+    board.text,
+    isBleeding,
+    board.density,
+  )
 
   const titleText =
     typeface.titleCase === 'upper' ? board.text.title.toUpperCase() : board.text.title
@@ -105,7 +109,7 @@ export const Poster = forwardRef<HTMLDivElement, PosterProps>(function Poster(
           <header
             className={styles.header}
             style={{
-              paddingTop: posterTokens.titleTop,
+              paddingTop: density.titleTop,
               paddingInline: posterTokens.marginX,
               // Above the covers when they run underneath it.
               position: isBleeding ? 'relative' : undefined,
@@ -167,7 +171,7 @@ export const Poster = forwardRef<HTMLDivElement, PosterProps>(function Poster(
               gridTemplateColumns: `repeat(${columns}, ${slotWidth}px)`,
               gridAutoRows: `${slotHeight}px`,
               // No gap in bleed mode: the covers meet.
-              gap: isBleeding ? 0 : posterTokens.gridGap,
+              gap: isBleeding ? 0 : density.gridGap,
               // Behind the type and its scrims, which overlay the artwork.
               zIndex: isBleeding ? 0 : undefined,
             }}
@@ -185,11 +189,13 @@ export const Poster = forwardRef<HTMLDivElement, PosterProps>(function Poster(
                   coverUrl={coverUrl}
                   inkColor={board.text.inkColor}
                   fontFamily={typeface.stack}
-                  // Ratings get busy fast with no gaps between the covers, and
-                  // the mode is about the books rather than the reviews. The
-                  // board's own setting is left untouched, so turning bleed off
-                  // brings the stars back.
-                  showRating={board.showRatings === true && !isBleeding}
+                  // The switch means the switch, in every mode. Bleed used to
+                  // force these off on the reasoning that stars get busy with no
+                  // gaps between the covers — which is a taste call that was
+                  // being made for the reader, and it showed up as the stars
+                  // vanishing with no explanation the moment bleed went on. They
+                  // carry their own scrim, so they stay legible over cover art.
+                  showRating={board.showRatings === true}
                   isFavourite={book !== undefined && book.id === board.favouriteBookId}
                   isBleeding={isBleeding}
                   slotWidth={slotWidth}

@@ -55,6 +55,18 @@ export interface Release {
 
 export const RELEASES: readonly Release[] = [
   {
+    version: '0.8.0',
+    date: '2026-08-22',
+    headline: 'Covers are bigger, and the layout button moved to the poster.',
+    changes: [
+      'Covers sit closer to the edge now, so every layout draws them larger.',
+      'Layout has its own button under the poster. Now you can watch the grids change without having to open and close the design drawer.',
+      'Switch from tall to wide mode on each layout by tapping twice.',
+      'Three new sliders control the margins and space on the poster. The panel fades so you can see the poster underneath.',
+      'Edge to edge works on every layout.',
+    ],
+  },
+  {
     version: '0.7.0',
     date: '2026-08-19',
     headline: 'Import now includes StoryGraph.',

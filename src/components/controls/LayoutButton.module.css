@@ -1,0 +1,121 @@
+/*
+ * Wide enough to breathe, narrow enough that the poster stays visible.
+ *
+ * The first version was 216px and read as cramped — the slider hints wrapped to
+ * two lines and the shapes packed five to a row. 272px total is about 66% of a
+ * 412px phone, which still leaves a column of poster beside it and the whole
+ * area below it, and that is the test: while this is open the reader has to be
+ * able to see a full row and a full column of the grid being chosen.
+ *
+ * Do not take it past ~70% of a narrow viewport. Past that it stops being a
+ * popover and becomes the drawer it was built to replace.
+ */
+.popover :global(.ant-popover-inner) {
+  padding: 10px;
+  max-width: 272px;
+}
+
+.panel,
+.panelPeeking {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 252px;
+  transition: opacity 120ms ease;
+}
+
+/* Dragging a slider drops the whole panel to a whisper rather than closing it,
+   so the thumb keeps its target while the poster becomes readable. */
+.panelPeeking {
+  opacity: 0.15;
+}
+
+.shapes {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+}
+
+.shape,
+.shapeActive {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  /* Grid items holding text refuse to shrink below their contents without
+     this, the same trap the search results and the bottom bar document. */
+  min-width: 0;
+  padding: 4px 2px;
+  border-radius: 5px;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+  transition: background 120ms ease;
+}
+
+.shape {
+  border: 1px solid var(--ra-line);
+  color: var(--ra-ink-faint);
+}
+
+.shapeActive {
+  border: 1px solid var(--ra-accent);
+  background: var(--ra-accent-soft);
+  color: var(--ra-ink);
+}
+
+.count {
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.dims {
+  font-size: 9px;
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.sliders {
+  border-top: 1px solid var(--ra-line);
+  padding-top: 8px;
+}
+
+.trigger,
+.triggerOpen {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+  transition: background 120ms ease;
+}
+
+.trigger {
+  border: 1px solid var(--ra-line);
+  background: none;
+  color: var(--ra-ink);
+}
+
+.triggerOpen {
+  border: 1px solid var(--ra-accent);
+  background: var(--ra-accent-soft);
+  color: var(--ra-ink);
+}
+
+.triggerCount {
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.triggerLabel {
+  font-size: 10px;
+  color: var(--ra-ink-faint);
+  font-variant-numeric: tabular-nums;
+}

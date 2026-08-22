@@ -199,14 +199,24 @@ export function PosterSlot({
    * In bleed mode the mark moves to the bottom corner.
    *
    * The poster's title overlays the covers there, sitting in a scrim 560px deep
-   * — on a 2x2 bleed poster that is more than half of the top row, so a star in
+   * — on a 2x2 bleed poster that is more than half of the top row, so a crown in
    * the top corner would be dimmed by the scrim and crowded by the title. The
    * foot of the slot is free instead, because bleed forces the rating band off.
    *
-   * Bottom-left rather than bottom-right, so the marks on the two lower slots
-   * of a 2x2 do not collide with the caption running across the middle.
+   * **This moves the mark between two corners depending on a mode, and that was
+   * the wrong trade.** A reader who sets a favourite in the top-right and then
+   * turns bleed on watches it jump to the bottom-left of a different slot, which
+   * reads as the app losing track of it. Consistency of place beats avoiding an
+   * overlap that the crown's own radial glow already handles — the glow exists
+   * precisely because cover art is unpredictable and a mark needs its own
+   * ground. Ruthnie, on finding it moved: "the favourite crown moves from the
+   * top right to the bottom left. I don't know who made that decision."
+   *
+   * So the crown stays in the top-right corner in every mode. Kept as a named
+   * constant rather than deleted, so the next person to hit the scrim overlap
+   * finds the reasoning instead of rediscovering it.
    */
-  const favouriteAtFoot = isBleeding
+  const favouriteAtFoot = false
 
   return (
     <div

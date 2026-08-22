@@ -6,9 +6,9 @@ import {
   QUALITY_HIGH,
   canEncodeVideo,
 } from 'mediabunny'
-import { POSTER, poster as posterTokens } from '../design/tokens'
-import { layoutGrid } from '../domain/layout'
-import { supportsCoverBleed, type Board } from '../types/domain'
+import { POSTER } from '../design/tokens'
+import { densityOf, layoutGrid } from '../domain/layout'
+import type { Board } from '../types/domain'
 import { posterToBlob } from './exportPoster'
 
 /**
@@ -450,10 +450,15 @@ export function videoUnavailableReason(): 'insecure-context' | 'unsupported' {
  * rectangle appearing.
  */
 function revealRects(board: Board): SlotRect[] {
-  const isBleeding = board.coverBleed === true && supportsCoverBleed(board.grid)
-  const { slotWidth, slotHeight, gridTop } = layoutGrid(board.grid, board.text, isBleeding)
+  const isBleeding = board.coverBleed === true
+  const { slotWidth, slotHeight, gridTop } = layoutGrid(
+    board.grid,
+    board.text,
+    isBleeding,
+    board.density,
+  )
 
-  const gap = isBleeding ? 0 : posterTokens.gridGap
+  const gap = isBleeding ? 0 : densityOf(board.density).gridGap
   const gridWidth = slotWidth * board.grid.columns + gap * (board.grid.columns - 1)
   // The grid block is centred horizontally in the frame; in bleed mode it fills
   // it, and the arithmetic gives the same answer without a special case.

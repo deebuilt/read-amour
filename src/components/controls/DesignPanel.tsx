@@ -5,13 +5,11 @@ import { getPhotoBackground, photoGroupsForMonth } from '../../design/photoBackg
 import { TYPEFACES, getTypeface } from '../../design/typefaces'
 import { InkPicker } from './InkPicker'
 import { BackgroundTreatmentControls } from './BackgroundTreatmentControls'
-import { GridPicker } from './GridPicker'
 import { PanelSection } from './PanelSection'
 import { color, fontSize } from '../../design/tokens'
-import { filledCount, resizeGrid } from '../../domain/board'
 import { storeUploadedImage } from '../../api/covers'
 import { useCoverPalette } from '../../hooks/useCoverPalette'
-import { GRID_LAYOUTS, supportsCoverBleed, type Board } from '../../types/domain'
+import { coverBleedCrop, type Board } from '../../types/domain'
 import styles from './DesignPanel.module.css'
 
 /**
@@ -43,16 +41,12 @@ export function DesignPanel({ board, coverUrls, onChange }: DesignPanelProps) {
   const coverPalette = useCoverPalette(coverUrls)
 
   /**
-   * Whether this poster's shape can run its covers edge to edge.
+   * How much of each cover this shape's bleed layout would crop away.
    *
-   * The list of shapes that can is derived from the catalogue rather than
-   * written into the copy, so adding a square layout updates the sentence and
-   * cannot leave it lying.
+   * Reported, not enforced — see `supportsCoverBleed` for why the old
+   * square-only restriction was measuring the wrong thing.
    */
-  const canBleed = supportsCoverBleed(board.grid)
-  const bleedShapes = GRID_LAYOUTS.filter(supportsCoverBleed)
-    .map((layout) => `${layout.columns} × ${layout.rows}`)
-    .join(', ')
+  const bleedCrop = Math.round(coverBleedCrop(board.grid) * 100)
 
   /**
    * A large photo is downscaled before it is stored, which takes long enough on
@@ -290,24 +284,12 @@ export function DesignPanel({ board, coverUrls, onChange }: DesignPanelProps) {
 
       <Divider className={styles.divider} />
 
-      <PanelSection label="Layout">
-        <GridPicker
-          value={board.grid}
-          filled={filledCount(board)}
-          onChange={(grid) => onChange(resizeGrid(board, grid))}
-        />
-      </PanelSection>
-
-      <Divider className={styles.divider} />
-
       <section className={styles.section}>
         <div className={styles.switchRow}>
           <div className={styles.switchText}>
             <Typography.Text className={styles.label}>Show ratings</Typography.Text>
             <Typography.Text style={{ fontSize: fontSize.xs, color: color.inkFaint }}>
-              {canBleed && board.coverBleed === true
-                ? 'Hidden while the covers run edge to edge.'
-                : 'Stars on books you rated. Unrated books stay bare.'}
+              Stars on books you rated. Unrated books stay bare.
             </Typography.Text>
           </div>
           <Switch
@@ -317,24 +299,25 @@ export function DesignPanel({ board, coverUrls, onChange }: DesignPanelProps) {
         </div>
 
         {/*
-          Only offered on the shapes that can carry it. On a 5x2 the covers
-          would lose two thirds of their height, which is not a look — it is the
-          artwork being destroyed by a control that gave no warning. So the row
-          explains what the shape has to be rather than appearing as a switch
-          that produces a bad poster. See `supportsCoverBleed`.
+          Offered on every shape. This was once restricted to square grids, on
+          the reasoning that a slot far from 2:3 crops its covers hard — which
+          was true and still made the wrong control, because the test was for
+          squareness rather than for cropping. A 2x3 loses 21% and was refused
+          while a square losing 16% was allowed, and 4x5 loses 5%.
+
+          So the row reports the crop instead of forbidding it. The number is
+          what the old rule was standing in for, and it lets the reader decide
+          whether a heavy crop is a look or a mistake.
         */}
         <div className={styles.switchRow}>
           <div className={styles.switchText}>
             <Typography.Text className={styles.label}>Covers edge to edge</Typography.Text>
             <Typography.Text style={{ fontSize: fontSize.xs, color: color.inkFaint }}>
-              {canBleed
-                ? 'No margins, no title band. Covers crop to fill the frame.'
-                : `Needs a square layout — ${bleedShapes}.`}
+              {`No margins, no title band. This shape crops about ${bleedCrop}% off each cover.`}
             </Typography.Text>
           </div>
           <Switch
-            checked={canBleed && board.coverBleed === true}
-            disabled={!canBleed}
+            checked={board.coverBleed === true}
             onChange={(coverBleed) => onChange({ ...board, coverBleed })}
           />
         </div>

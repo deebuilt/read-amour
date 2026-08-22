@@ -79,6 +79,36 @@ export type Background =
   | { kind: 'color'; value: string }
 
 /**
+ * How tightly a poster packs its covers.
+ *
+ * Every value is in export pixels against the 1080x1920 canvas, and every one
+ * of them was a fixed token before it turned out to be the only thing between
+ * the covers and the edge.
+ */
+export interface PosterDensity {
+  /** Side margin for the grid. 0 runs the covers to the poster edge. */
+  gridMarginX: number
+  /** Space between covers. 0 makes them touch. */
+  gridGap: number
+  /** Blank space above the title. Nothing overlays the top of a Story. */
+  titleTop: number
+}
+
+/**
+ * The tightest each value can go, and why the poster stops there.
+ *
+ * `gridMarginX` and `gridGap` bottom out at 0 because that is a real edge —
+ * covers touching the frame and each other. `titleTop` bottoms out at 0 for the
+ * same reason. Nothing here is a taste limit; the poster is allowed to look bad
+ * so it can be seen looking bad.
+ */
+export const DENSITY_RANGE = {
+  gridMarginX: { min: 0, max: 96 },
+  gridGap: { min: 0, max: 40 },
+  titleTop: { min: 0, max: 200 },
+} as const
+
+/**
  * Grid shape. Columns and rows are chosen rather than derived from book count,
  * so a partly-filled grid still reads as deliberate.
  */
@@ -88,91 +118,151 @@ export interface GridConfig {
 }
 
 /**
- * The grid shapes the app offers, and the only ones it offers.
+ * The grid shapes the app offers.
  *
- * Not every columns-by-rows pair fills the poster. The frame is 9:16 and slots
- * are locked to 2:3 so covers never crop, which means a grid taller than it is
- * wide runs out of height before it runs out of width — and the leftover width
- * has nowhere to go, because widening a slot would make it taller again. It
- * falls into the side margins instead. A 2x6 grid uses 30% of the frame width
- * and reads as a narrow column floating in dead air.
+ * Two per capacity wherever both read as a poster — a wide one and its tall
+ * transpose — with the wide one first, because after the frame was tightened it
+ * gives the larger cover at every capacity. The squares have no transpose and
+ * stand alone.
  *
- * The rule that falls out of the geometry is exact: **rows may never exceed
- * columns.** Every square-or-wider shape is width-bound and fills the frame at
- * the designed 72px margin; every taller-than-wide shape strands margin.
+ * ## Why rearranging cannot make a cover bigger, and what can
  *
- * So the shape is not a free choice. Two sliders asked the user to solve a
- * geometry problem in order to answer the question she actually has, which is
- * how many books fit. These are the shapes that make a good poster, and the
- * control offers them by capacity.
+ * This is the finding the catalogue kept relearning, so it is written down.
  *
- * 5x5 (25) is deliberately absent though it is width-bound and legal: slots
- * come out 152px wide on a 1080px poster, which is a postage stamp on a phone
- * and turns the star ratings into specks. Add it if 25-book months are ever
- * actually asked for.
+ * Slots are locked to 2:3 so covers never crop, which means a slot cannot get
+ * wider without getting 1.5x taller. The frame is 9:16 and has no spare height.
+ * So a grid taller than it is wide runs out of height first, its leftover width
+ * has nowhere to go, and that width falls into the side margins: 2x4 uses 45% of
+ * the frame's width and can spend none of the rest.
  *
- * 1x1 and 2x1 sit below what used to be the floor. Four slots was the smallest
- * poster on offer, which forced a reader with one book she loved into a grid
- * with three empty rectangles. Both satisfy rows <= columns, so the geometry
- * rule holds.
+ * The consequence is exact and was missed twice. **Moving rows and columns
+ * around redistributes the same-size boxes.** A catalogue swapped wholesale from
+ * wide shapes to tall ones — which happened on 2026-08-22 — produces posters
+ * whose covers are identical in size and whose margins are worse. Ruthnie put it
+ * plainly on seeing it: "you gave me new layout, same grid."
  *
- * 1x1 was expected to be the exception — a single 2:3 slot at full width is
- * 1404px tall, which is more vertical space than the frame has between the
- * title and the bottom margin, so it looked like it would come out height-bound
- * and strand margin. It does not. `layoutGrid` lets a tall grid claim the bottom
- * clearance down to `gridBottomMin`, and at one row that is enough: the slot
- * lands at the full 936px, width-bound, at the designed 72px margin like every
- * other shape here. The one case that does go height-bound is a caption WITH a
- * title plate, which drops it to 852px and 114px side margins — a mild
- * stranding on the poster least likely to be crowded.
+ * What actually reaches the covers is the frame itself. Every wide shape is
+ * width-bound, so its slot size is set by exactly one number — the side margin —
+ * and 4x2, 3x3, 4x4 and 5x4 were each pressed flat against it. Taking the grid's
+ * margin from 72 to 40 and the gap from 20 to 12 is what handed that space over:
+ * 4x4 gained 7.5%, 3x3 6.0%, 2x2 4.5%. See `gridMarginX` in `tokens.ts`.
+ *
+ * The tall shapes gained almost nothing from it (2x4: 1.7%) because margin was
+ * never their constraint — height is. Which is why, after tightening, the wide
+ * orientation gives the bigger cover at every single capacity.
+ *
+ * ## So why offer the tall ones at all
+ *
+ * Because cover size is not the only thing a poster is judged on, and the shape
+ * of the block is a real preference — a tall stack reads differently from a wide
+ * band, whatever the arithmetic says. The wide one leads because it is bigger;
+ * the tall one is there because someone may want it. `GridPicker` cycles between
+ * them on a second tap rather than listing both, so the choice stays "how many
+ * books" first.
+ *
+ * 5x5 (25) is left out: 152px slots on a 1080px poster are a postage stamp on a
+ * phone and turn the star ratings into specks. 1x1 and its pair sit below what
+ * was once a floor of four, which forced a reader with one book she loved into a
+ * grid holding three empty rectangles.
+ *
+ * 1x1 is the shape that proves the height mechanism. A single 2:3 slot at full
+ * width is 1448px tall, more than the frame has between the title and the bottom
+ * margin, so it reads as certain to strand margin. It does not: `layoutGrid` lets
+ * a tall grid claim the bottom clearance down to `gridBottomMin`, and at one row
+ * that is enough to land width-bound at 965px.
  */
 export const GRID_LAYOUTS: readonly GridConfig[] = [
   { columns: 1, rows: 1 }, // 1
   { columns: 2, rows: 1 }, // 2
+  { columns: 1, rows: 2 },
   { columns: 2, rows: 2 }, // 4
   { columns: 3, rows: 2 }, // 6
+  { columns: 2, rows: 3 },
   { columns: 4, rows: 2 }, // 8
+  { columns: 2, rows: 4 },
   { columns: 3, rows: 3 }, // 9
   { columns: 5, rows: 2 }, // 10
+  { columns: 2, rows: 5 },
   { columns: 4, rows: 3 }, // 12
+  { columns: 3, rows: 4 },
   { columns: 5, rows: 3 }, // 15
+  { columns: 3, rows: 5 },
   { columns: 4, rows: 4 }, // 16
   { columns: 5, rows: 4 }, // 20
+  { columns: 4, rows: 5 },
 ] as const
+
+/**
+ * The orientations offered at a capacity, widest first.
+ *
+ * `GridPicker` shows one card per capacity and cycles through this on tap, so
+ * the reader chooses a book count and then, if she wants, a shape. Order is the
+ * catalogue's order, which puts the larger-cover shape first.
+ */
+export function orientationsFor(capacity: number): GridConfig[] {
+  return GRID_LAYOUTS.filter((grid) => gridCapacity(grid) === capacity)
+}
+
+/** The capacities on offer, each appearing once, in ascending order. */
+export const GRID_CAPACITIES: readonly number[] = [
+  ...new Set(GRID_LAYOUTS.map(gridCapacity)),
+].sort((a, b) => a - b)
 
 export function gridCapacity(grid: GridConfig): number {
   return grid.columns * grid.rows
 }
 
 /**
- * Whether this shape can run its covers edge to edge without wrecking them.
+ * Every shape can run its covers edge to edge. This is kept only to say so.
  *
- * Cover bleed drops the margins and the gap, so each slot becomes exactly
- * `1080/columns` by `1920/rows` and the cover crops to fill it. How much of the
- * cover survives is entirely decided by how far that slot's aspect sits from
- * the 2:3 a cover actually is — and the answer is not close for most shapes:
+ * It used to return `columns === rows`, and the reasoning was that a bleed slot
+ * takes whatever aspect the grid demands, so a shape far from 2:3 crops its
+ * covers hard — 66% off a 5x2. True, and it produced a rule that was wrong on
+ * its own terms: the test was for squareness, not for cropping, and the two are
+ * not the same thing. Measured across the catalogue:
  *
- *     2x2, 3x3, 4x4 →  16% cropped   (a trim off the top and bottom)
- *     5x4           →  32%
- *     4x3           →  37%
- *     3x2           →  44%
- *     5x3           →  49%
- *     2x1, 4x2      →  58%
- *     5x2           →  66%           (two thirds of every cover gone)
+ *     4x5   5% cropped        2x3  21%        2x4  41%
+ *     3x4  11%                3x5  29%        3x2  44%
+ *     squares 16%             5x4  32%        2x5  53%
  *
- * The pattern is exact rather than coincidental: the frame is 9:16, so a grid
- * whose columns-to-rows ratio equals the frame's own gives slots that are
- * themselves 9:16, and every such shape lands on the same 16%. Those are the
- * square grids, and 1x1 with them.
+ * 4x5 and 3x4 crop LESS than the squares and were blocked; 2x3 crops 21% and
+ * was blocked, while a square at 16% was allowed. The rule was letting one
+ * number stand in for another because they agreed under an older catalogue.
  *
- * So bleed is not a flag that can ride on any layout. Offered on a 5x2 it would
- * quietly destroy the artwork the app exists to show, which is worse than not
- * offering it — the reader would have no way to know that the shape, not the
- * mode, was the problem.
+ * The deeper mistake was deciding on the reader's behalf. A poster that fills
+ * the frame corner to corner is a look someone may want at any shape, and 21%
+ * off a cover is a crop, not a mutilation. Ruthnie, looking at a 2x3 that could
+ * obviously tile the frame and being refused: "we're being too conservative,
+ * and it's annoying. Let it get squishy. Let it get uncomfortable. Some people
+ * might like that."
+ *
+ * So the switch is always available and the poster is allowed to look bad. What
+ * a reader cannot do is find out why a control is missing, which is the failure
+ * this replaces.
  */
-export function supportsCoverBleed(grid: GridConfig): boolean {
-  return grid.columns === grid.rows
+export function supportsCoverBleed(_grid: GridConfig): boolean {
+  return true
 }
+
+/**
+ * How much of each cover a bleed layout crops away, as a fraction.
+ *
+ * Reported next to the switch rather than used to forbid anything. The number
+ * is the honest version of what the old rule was guessing at, and it lets the
+ * reader decide whether 53% is a look or a mistake.
+ */
+export function coverBleedCrop(grid: GridConfig): number {
+  const slotAspect = POSTER_ASPECT.width / grid.columns / (POSTER_ASPECT.height / grid.rows)
+  const coverAspect = 2 / 3
+
+  return slotAspect > coverAspect
+    ? 1 - coverAspect / slotAspect
+    : 1 - slotAspect / coverAspect
+}
+
+/** The canvas, for the crop arithmetic above. Mirrors `POSTER` in `tokens.ts`. */
+const POSTER_ASPECT = { width: 1080, height: 1920 } as const
+
 
 /** The most books any offered poster holds. */
 export const MAX_GRID_CAPACITY = Math.max(...GRID_LAYOUTS.map(gridCapacity))
@@ -271,12 +361,28 @@ export interface Board {
    * Undefined reads as off, matching `showRatings`, so every board saved before
    * this existed keeps the look it was made with.
    *
-   * Only offered on shapes where it does not destroy the covers — see
-   * `supportsCoverBleed`. A board carrying the flag onto an unsupported shape
-   * renders normally rather than badly; the flag survives so that returning to
-   * a square grid restores the mode.
+   * Offered on every shape. It was once restricted to square grids; that rule
+   * tested for squareness while claiming to protect against cropping, and the
+   * two are not the same — see `supportsCoverBleed`.
    */
   coverBleed?: boolean
+  /**
+   * How tightly the covers are packed into the frame.
+   *
+   * Three numbers that were fixed tokens until they turned out to be the only
+   * thing standing between the covers and the edge of the poster. Rearranging
+   * rows and columns cannot make a cover bigger — slots are locked to 2:3, so a
+   * slot cannot widen without growing 1.5x taller, and the frame has no spare
+   * height. The frame itself is the only lever.
+   *
+   * The real ceiling is the canvas: 1080px across three columns is 360px a slot
+   * and no arrangement beats it. Everything between the current size and that
+   * ceiling is margin and gap, which are choices rather than constraints.
+   *
+   * Undefined reads as the defaults in `tokens.ts`, so boards saved before this
+   * existed keep the look they were made with.
+   */
+  density?: PosterDensity
   background: Background
   treatment?: BackgroundTreatment
   slots: Slot[]
